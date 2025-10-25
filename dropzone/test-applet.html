@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Test Vibraphone</title>
+  <style>
+    body, html { margin:0; padding:0; height:100%; background:#000; display:flex; align-items:center; justify-content:center; }
+    button { padding:20px 40px; font-size:24px; background:#0f0; color:#000; border:none; border-radius:12px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <button id="start">CLICK TO START SOUND</button>
+
+  <script>
+    const btn = document.getElementById('start');
+    let audioCtx;
+
+    btn.addEventListener('click', () => {
+      if (audioCtx) return;
+      audioCtx = new AudioContext();
+
+      // Simple vibraphone-like tone (sine + FM)
+      const osc = audioCtx.createOscillator();
+      const mod = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const modGain = audioCtx.createGain();
+
+      mod.frequency.value = 5;
+      modGain.gain.value = 50;
+
+      osc.frequency.value = 440;
+      osc.type = 'sine';
+
+      mod.connect(modGain).connect(osc.frequency);
+      osc.connect(gain).connect(audioCtx.destination);
+
+      mod.start();
+      osc.start();
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+
+      btn.textContent = "PLAYING... (looping)";
+      btn.disabled = true;
+    });
+  </script>
+</body>
+</html>
