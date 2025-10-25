@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vibraphonics PWA</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden; background:#111; }
+    #feed {
+      height:100vh;
+      overflow-y: auto;
+      scroll-snap-type: y proximity;
+      -webkit-overflow-scrolling: touch;
+    }
+    iframe {
+      width:100%;
+      height:100vh;
+      border:none;
+      display:block;
+      scroll-snap-align: start;
+    }
+    .loading {
+      color:#0f0;
+      text-align:center;
+      padding:2rem;
+      font-family: monospace;
+      font-size:1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="feed">
+    <div class="loading">Loading applets...</div>
+  </div>
+
+  <script>
+    const feed = document.getElementById('feed');
+    const loading = feed.querySelector('.loading');
+
+    // Fetch directory listing from GitHub Pages
+    fetch('/vibraphonicsPWA/dropzone/')
+      .then(r => r.text())
+      .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const links = [...doc.querySelectorAll('a')]
+          .map(a => a.getAttribute('href'))
+          .filter(href => href.endsWith('.html') && !href.includes('..'))
+          .sort(); // Optional: alphabetical
+
+        if (links.length === 0) {
+          loading.textContent = "No applets in dropzone/ yet!";
+          return;
+        }
+
+        loading.remove();
+        links.forEach(file => {
+          const iframe = document.createElement('iframe');
+          iframe.src = '/vibraphonicsPWA/dropzone/' + file;
+          iframe.loading = 'lazy';
+          feed.appendChild(iframe);
+        });
+      })
+      .catch(err => {
+        loading.textContent = "Error loading applets. Check console.";
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
