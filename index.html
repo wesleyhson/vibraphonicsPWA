@@ -3,52 +3,61 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Vibraphonics</title>
+  <title>VibraTronix</title>
   <link rel="manifest" href="/vibraphonicsPWA/manifest.json">
   <link rel="icon" href="/vibraphonicsPWA/icon-192.png">
-  <meta name="theme-color" content="#0f0">
+  <meta name="theme-color" content="#8a2be2">
   <style>
+    :root {
+      --bg: #0a0a1a;
+      --text: #00ffff;
+      --accent: #8a2be2;
+      --glow: 0 0 20px rgba(0, 255, 255, 0.6);
+    }
     * { margin:0; padding:0; box-sizing:border-box; }
-    html, body { height:100%; overflow:hidden; background:#111; font-family: 'Courier New', monospace; color:#0f0; }
+    html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family: 'Courier New', monospace; }
 
     /* LANDING PAGE */
     #landing {
-      position: fixed; top:0; left:0; width:100%; height:100%;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      text-align: center; padding: 2rem; z-index: 9999;
-      background: #000;
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; padding:2rem; z-index:9999; background:var(--bg);
     }
-    #landing h1 { font-size: 2.5rem; margin-bottom: 1rem; }
-    #landing p { font-size: 1.2rem; margin: 1rem 0; max-width: 600px; line-height: 1.6; }
+    #landing h1 {
+      font-size:2.8rem; margin-bottom:1rem; color:var(--accent); text-shadow:var(--glow);
+    }
+    #landing p {
+      font-size:1.2rem; margin:1rem 0; max-width:600px; line-height:1.6;
+    }
     #begin-btn {
-      margin-top: 2rem; padding: 18px 40px; font-size: 1.4rem;
-      background: #0f0; color: #000; border: none; border-radius: 12px;
-      cursor: pointer; font-weight: bold;
+      margin-top:2rem; padding:18px 40px; font-size:1.4rem;
+      background:var(--accent); color:#fff; border:none; border-radius:12px;
+      cursor:pointer; font-weight:bold; box-shadow:var(--glow);
     }
 
     /* FEED */
     #feed {
-      height:100vh; overflow-y: scroll; scroll-snap-type: y mandatory;
-      -webkit-overflow-scrolling: touch; opacity: 0; transition: opacity 0.5s;
+      height:100vh; overflow-y:scroll; scroll-snap-type:y mandatory;
+      -webkit-overflow-scrolling:touch; opacity:0; transition:opacity 0.5s;
     }
     iframe {
-      width:100%; height:100vh; border:none; display:block; scroll-snap-align: start;
-      opacity: 0.4; transition: opacity 0.3s;
+      width:100%; height:100vh; border:none; display:block; scroll-snap-align:start;
+      opacity:0.4; transition:opacity 0.3s;
     }
-    iframe.active { opacity: 1; }
+    iframe.active { opacity:1; }
   </style>
 </head>
 <body>
 
   <!-- LANDING PAGE -->
   <div id="landing">
-    <h1>VIBROPHONICS</h1>
+    <h1>VIBRATRONIX</h1>
     <p><strong>Procedural Web Audio Art</strong></p>
-    <p>Each screen is a self-contained sound applet.</p>
-    <p><strong>How to use:</strong><br>
+    <p>Each screen is a self-contained sound universe.</p>
+    <p><strong>How to play:</strong><br>
        1. Tap <strong>"BEGIN JOURNEY"</strong><br>
        2. <strong>Tap each applet</strong> to unlock sound<br>
-       3. <strong>Swipe up/down</strong> to move to the next<br>
+       3. <strong>Swipe up/down</strong> to explore<br>
        4. Only one plays at a time
     </p>
     <button id="begin-btn">BEGIN JOURNEY</button>
@@ -68,11 +77,9 @@
       if (audioUnlocked) return;
       audioUnlocked = true;
 
-      // Global audio unlock
       const dummy = new AudioContext();
       await dummy.resume();
 
-      // Fade out landing, fade in feed
       landing.style.opacity = '0';
       setTimeout(() => {
         landing.remove();
@@ -81,35 +88,47 @@
       }, 500);
     });
 
-    function loadApplets() {
-      fetch('https://api.github.com/repos/wesleyhson/vibraphonicsPWA/contents/dropzone')
-        .then(r => r.json())
-        .then(files => {
-          const htmlFiles = files
-            .filter(f => f.name.endsWith('.html'))
-            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-            .map(f => f.name);
+    async function loadApplets() {
+      // === 1. GET CUSTOM ORDER FROM order.json ===
+      let order = [];
+      try {
+        const orderRes = await fetch('/vibraphonicsPWA/order.json');
+        if (orderRes.ok) order = await orderRes.json();
+      } catch (e) {
+        console.warn('No order.json — using creation date');
+      }
 
-          if (htmlFiles.length === 0) {
-            feed.innerHTML = '<div style="color:#0f0; text-align:center; padding:20vh;">No applets yet!</div>';
-            return;
-          }
+      // === 2. GET ALL FILES FROM dropzone/ ===
+      const filesRes = await fetch('https://api.github.com/repos/wesleyhson/vibraphonicsPWA/contents/dropzone');
+      const files = await filesRes.json();
+      const htmlFiles = files
+        .filter(f => f.name.endsWith('.html'))
+        .map(f => ({ name: f.name, created: f.created_at }));
 
-          htmlFiles.forEach(file => {
-            const iframe = document.createElement('iframe');
-            iframe.src = '/vibraphonicsPWA/dropzone/' + file + '?v=' + Date.now();
-            iframe.loading = 'lazy';
-            iframe.allow = 'autoplay; fullscreen';
-            iframe.dataset.file = file;
-            feed.appendChild(iframe);
-          });
+      // === 3. SORT: CUSTOM ORDER → CREATION DATE ===
+      const ordered = order.filter(f => htmlFiles.some(h => h.name === f));
+      const remaining = htmlFiles
+        .filter(f => !order.includes(f.name))
+        .sort((a, b) => new Date(a.created) - new Date(b.created))
+        .map(f => f.name);
 
-          setTimeout(initObserver, 1000);
-        })
-        .catch(err => {
-          feed.innerHTML = '<div style="color:#f00; text-align:center; padding:20vh;">Error loading.</div>';
-          console.error(err);
-        });
+      const finalOrder = [...ordered, ...remaining];
+
+      if (finalOrder.length === 0) {
+        feed.innerHTML = '<div style="color:var(--text);text-align:center;padding:20vh;">No applets yet!</div>';
+        return;
+      }
+
+      // === 4. RENDER IFRAMES ===
+      finalOrder.forEach(file => {
+        const iframe = document.createElement('iframe');
+        iframe.src = '/vibraphonicsPWA/dropzone/' + file + '?v=' + Date.now();
+        iframe.loading = 'lazy';
+        iframe.allow = 'autoplay; fullscreen';
+        feed.appendChild(iframe);
+      });
+
+      setTimeout(initObserver, 1000);
     }
 
     function initObserver() {
@@ -142,7 +161,7 @@
       iframes.forEach(ifr => observer.observe(ifr));
     }
 
-    // PWA
+    // PWA Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/vibraphonicsPWA/sw.js');
     }
