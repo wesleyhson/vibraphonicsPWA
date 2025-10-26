@@ -15,9 +15,8 @@
 <canvas id="c"></canvas>
 
 <script>
-  // === GLOBALS (DEFINED ONCE) ===
+  // === GLOBALS ===
   let isPlaying = false;
-  let audioCtx, masterGain;
   let kickLoop, melodyLoop;
   let kickPulse = 0;
   let stars = [], nebula = [];
@@ -31,7 +30,6 @@
   let scaleDirection = 1;
   let scaleTimer = 0;
   let animationId = null;
-  let animationInterval = null;
 
   // === CANVAS ===
   const canvas = document.getElementById('c');
@@ -101,7 +99,7 @@
   const colors = ['#ff004d','#ff6600','#ffcc00','#00ff66','#00ccff','#0066ff','#cc00ff','#ffffff'];
   const rootNotes = ['C3','D3','E3','G3','A3','C4','D4','E4'];
 
-  // === TONE.JS SETUP (ONCE) ===
+  // === TONE.JS SETUP ===
   const synths = [];
   for (let i = 0; i < barCount; i++) {
     const s = new Tone.PolySynth(Tone.Synth, {
@@ -117,7 +115,7 @@
   }).toDestination();
   kick.volume.value = -10;
 
-  // === LOOPS (DEFINED ONCE) ===
+  // === LOOPS ===
   kickLoop = new Tone.Loop(t => {
     kick.triggerAttackRelease("C1", "8n", t);
     kickPulse = 1;
@@ -188,7 +186,7 @@
   // === START / PAUSE ===
   async function start() {
     if (isPlaying) return;
-    await Tone.start();
+    await Tone.start();  // RESTORED
     kickLoop.start(0);
     melodyLoop.start(0);
     initSpace();
