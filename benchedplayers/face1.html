@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VibraTronix — PINK VAGINA SNUGGLE (POST-LOVE)</title>
+  <title>VibraTronix — PINK VAGINA KISS (SWEET & PURE)</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
@@ -22,7 +22,6 @@
   let activeOscillators = [];
   let face = { x: innerWidth / 2, y: innerHeight / 2, r: 180, blush: 0, eyesOpen: true, mouthOpen: 0 };
   let accentCircles = [];
-  let kissInterval = null;
 
   // === CANVAS ===
   const canvas = document.getElementById('c');
@@ -112,9 +111,9 @@
     ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Face (snuggling glow)
-    face.blush *= 0.99;
-    face.blush += 0.008;
+    // Face
+    face.blush *= 0.98;
+    face.blush += 0.015;
 
     const gradient = ctx.createRadialGradient(face.x, face.y, 0, face.x, face.y, face.r * (1 + face.blush * 0.3));
     gradient.addColorStop(0, '#ff99cc');
@@ -124,24 +123,23 @@
     ctx.arc(face.x, face.y, face.r * (1 + face.blush * 0.3), 0, Math.PI * 2);
     ctx.fill();
 
-    // Eyes (soft, half-closed)
+    // Eyes (looking up at you)
     const eyeY = face.y - face.r * 0.3;
-    const eyeOpen = 0.5 + Math.sin(Date.now() * 0.001) * 0.3;
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.ellipse(face.x - face.r * 0.3, eyeY, face.r * 0.2, face.r * 0.2 * eyeOpen, 0, 0, Math.PI * 2);
-    ctx.ellipse(face.x + face.r * 0.3, eyeY, face.r * 0.2, face.r * 0.2 * eyeOpen, 0, 0, Math.PI * 2);
+    ctx.arc(face.x - face.r * 0.3, eyeY, face.r * 0.2, 0, Math.PI * 2);
+    ctx.arc(face.x + face.r * 0.3, eyeY, face.r * 0.2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Pupils (gazing softly)
+    // Pupils (gazing up)
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.arc(face.x - face.r * 0.3, eyeY, face.r * 0.08, 0, Math.PI * 2);
-    ctx.arc(face.x + face.r * 0.3, eyeY, face.r * 0.08, 0, Math.PI * 2);
+    ctx.arc(face.x - face.r * 0.3, eyeY - face.r * 0.1, face.r * 0.08, 0, Math.PI * 2);
+    ctx.arc(face.x + face.r * 0.3, eyeY - face.r * 0.1, face.r * 0.08, 0, Math.PI * 2);
     ctx.fill();
 
     // Mouth (soft smile)
-    face.mouthOpen = 0.3 + Math.sin(Date.now() * 0.0015) * 0.08;
+    face.mouthOpen = 0.4 + Math.sin(Date.now() * 0.002) * 0.1;
     ctx.strokeStyle = '#ff6699';
     ctx.lineWidth = face.r * 0.08;
     ctx.beginPath();
@@ -149,7 +147,7 @@
     ctx.stroke();
 
     // Accent circles
-    if (Math.random() < 0.15) spawnAccentCircle();
+    if (Math.random() < 0.2) spawnAccentCircle();
     accentCircles = accentCircles.filter(c => {
       c.x += c.vx;
       c.y += c.vy;
@@ -169,21 +167,20 @@
   // === MELODIC KISS LOOP ===
   function kissLoop() {
     playMusicBox();
-    if (Math.random() < 0.3) playAccentPlink();
+    if (Math.random() < 0.4) playAccentPlink();
   }
 
-  // === START / PAUSE (FIXED: NO OVERLAP) ===
+  // === START / PAUSE ===
   async function start() {
     if (isPlaying) return;
     await initAudio();
-    kissInterval = setInterval(kissLoop, 1600); // Slower, more intimate
+    setInterval(kissLoop, 1400);
     animationId = requestAnimationFrame(animate);
     isPlaying = true;
   }
 
   function pause() {
     if (!isPlaying) return;
-    clearInterval(kissInterval);
     if (animationId) cancelAnimationFrame(animationId);
     stopAllOscillators();
     isPlaying = false;
