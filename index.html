@@ -1,36 +1,73 @@
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/vibraphonicsPWA/sw.js');
-  }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vibraphonics</title>
+  <link rel="manifest" href="/vibraphonicsPWA/manifest.json">
+  <link rel="icon" href="/vibraphonicsPWA/icon-192.png">
+  <meta name="theme-color" content="#0f0">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden; background:#111; }
+    #feed {
+      height:100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    iframe {
+      width:100%;
+      height:100vh;
+      border:none;
+      display:block;
+      scroll-snap-align: start;
+    }
+  </style>
+</head>
+<body>
+  <!-- THIS WAS MISSING -->
+  <div id="feed"></div>
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const feed = document.getElementById('feed');
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/vibraphonicsPWA/sw.js');
+    }
 
-    fetch('https://api.github.com/repos/wesleyhson/vibraphonicsPWA/contents/dropzone')
-      .then(r => r.json())
-      .then(files => {
-        const htmlFiles = files
-          .filter(f => f.name.endsWith('.html'))
-          .map(f => f.name)
-          .sort();
+    document.addEventListener('DOMContentLoaded', () => {
+      const feed = document.getElementById('feed');
+      if (!feed) {
+        document.body.innerHTML = '<div style="color:#f00; text-align:center; padding:20vh;">#feed missing!</div>';
+        return;
+      }
 
-        if (htmlFiles.length === 0) {
-          feed.innerHTML = '<div style="color:#0f0; text-align:center; padding:20vh; font-family:monospace;">No applets yet!</div>';
-          return;
-        }
+      fetch('https://api.github.com/repos/wesleyhson/vibraphonicsPWA/contents/dropzone')
+        .then(r => r.json())
+        .then(files => {
+          const htmlFiles = files
+            .filter(f => f.name.endsWith('.html'))
+            .map(f => f.name)
+            .sort();
 
-        htmlFiles.forEach(file => {
-          const iframe = document.createElement('iframe');
-          iframe.src = '/vibraphonicsPWA/dropzone/' + file + '?v=' + Date.now();
-          iframe.style = 'width:100%; height:100vh; border:none; display:block; scroll-snap-align:start;';
-          iframe.loading = 'lazy';
-          iframe.allow = 'autoplay; fullscreen';
-          feed.appendChild(iframe);
+          if (htmlFiles.length === 0) {
+            feed.innerHTML = '<div style="color:#0f0; text-align:center; padding:20vh; font-family:monospace;">No applets yet!</div>';
+            return;
+          }
+
+          htmlFiles.forEach(file => {
+            const iframe = document.createElement('iframe');
+            iframe.src = '/vibraphonicsPWA/dropzone/' + file + '?v=' + Date.now();
+            iframe.style = 'width:100%; height:100vh; border:none; display:block; scroll-snap-align:start;';
+            iframe.loading = 'lazy';
+            iframe.allow = 'autoplay; fullscreen';
+            feed.appendChild(iframe);
+          });
+        })
+        .catch(err => {
+          feed.innerHTML = '<div style="color:#f00; text-align:center; padding:20vh;">API Error.</div>';
+          console.error(err);
         });
-      })
-      .catch(err => {
-        feed.innerHTML = '<div style="color:#f00; text-align:center; padding:20vh;">API Error. Check file paths.</div>';
-        console.error(err);
-      });
-  });
-</script>
+    });
+  </script>
+</body>
+</html>
