@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VibraTronix — ROSY CUM KISS (SWEET & MELODIOUS)</title>
+  <title>VibraTronix — ROSY CUM KISS (FIXED)</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
@@ -28,7 +28,7 @@
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
   function resize() { 
-    canvas.width = innerWidthWidth; 
+    canvas.width = innerWidth; 
     canvas.height = innerHeight; 
     face.x = innerWidth / 2;
     face.y = innerHeight / 2;
@@ -54,7 +54,7 @@
 
   // === SWEET MELODIC KISS (Cmaj7 arpeggio) ===
   function playKissNote() {
-    const t = audioCtxcTime;
+    const t = audioCtx.currentTime;
     const notes = [72, 76, 79, 83]; // Cmaj7
     const note = notes[Math.floor(Math.random() * notes.length)];
     const freq = 440 * Math.pow(2, (note - 69) / 12);
