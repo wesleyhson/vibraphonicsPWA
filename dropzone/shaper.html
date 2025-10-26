@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VibraTronix — Latent Space Electric Orbit</title>
+  <title>Harmonic White Core</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
@@ -24,121 +24,300 @@ function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
 resize(); window.addEventListener('resize', resize);
 
 // --------------------------------------------------
-// 2. Cosmic Vortex Background
+// 2. Vertical Pixel Rain
 // --------------------------------------------------
-let stars = [];
-let vortex = [];
+let rain = [];
 
-function initCosmos() {
-  stars = Array.from({length: 500}, () => ({
+
+
+function initRain() {
+  rain = Array.from({length: 250}, () => ({
     x: Math.random() * innerWidth,
-    y: Math.random() * innerHeight,
-    r: Math.random() * 1.2,
-    twinkle: Math.random() * Math.PI * 2,
-    angle: Math.random() * Math.PI * 2,
-    dist: Math.random() * 500
-  }));
-
-  vortex = Array.from({length: 8}, () => ({
-    angle: Math.random() * Math.PI * 2,
-    speed: 0.003 + Math.random() * 0.005,
-    r: 200 + Math.random() * 300,
-    color: ['#4a148c','#6a1b9a','#7b1fa2','#8e24aa'][Math.floor(Math.random()*4)]
+    y: Math.random() * innerHeight - innerHeight,
+    speed: 2 + Math.random() * 7,
+    length: 12 + Math.random() * 25,
+    color: ['#00ffff','#ff00ff','#39ff14','#ff00aa','#ffaa00'][Math.floor(Math.random()*5)]
   }));
 }
 
-function drawCosmos() {
-  // Vortex
-  vortex.forEach(v => {
-    v.angle += v.speed;
-    const x = innerWidth/2 + Math.cos(v.angle) * v.r;
-    const y = innerHeight/2 + Math.sin(v.angle) * v.r;
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, v.r * 0.5);
-    grad.addColorStop(0, v.color + '18');
-    grad.addColorStop(1, v.color + '00');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(x, y, v.r * 0.5, 0, Math.PI*2);
-    ctx.fill();
-  });
+function drawRain() {
+  rain.forEach(r => {
+    r.y += r.speed;
+    if (r.y > innerHeight) r.y = -r.length;
 
-  // Stars
-  stars.forEach(s => {
-    s.angle += 0.0005;
-    s.x = innerWidth/2 + Math.cos(s.angle) * s.dist;
-    s.y = innerHeight/2 + Math.sin(s.angle) * s.dist;
-    const twinkle = Math.sin(Date.now()*0.001 + s.twinkle)*0.5 + 0.5;
-    ctx.fillStyle = `rgba(255,255,255,${twinkle})`;
+    const grad = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.length);
+    grad.addColorStop(0, r.color);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-    ctx.fill();
+    ctx.moveTo(r.x, r.y);
+    ctx.lineTo(r.x, r.y + r.length);
+    ctx.stroke();
   });
 }
 
-// === AUDIO ===
+// --------------------------------------------------
+// 3. Audio
+// --------------------------------------------------
 let audioCtx, masterGain;
 let step = 0;
 let shimmerIndex = 0;
-const shimmerArp = [72, 76, 79, 84, 79, 76, 72, 67];
+const shimmerArp = [72, 76, 79, 84, 79, 76, 72, 67]; // C major arpeggio
 
-function initAudio() {
+function unlockAudio() {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   masterGain = audioCtx.createGain();
   masterGain.gain.value = 0.85;
   masterGain.connect(audioCtx.destination);
+
+  setInterval(musicStep, 200);
+  setInterval(shimmerVoice, 800); // Every 4 beats
+  requestAnimationFrame(animate);
 }
 
+// --------------------------------------------------
+// 4. Plink = SPAWN COLORFUL
+// --------------------------------------------------
+const plinkNotes = [74, 79, 81, 86]; // E G A C
+
+function playPlink() {
+  const t = audioCtx.currentTime;
+  const note = plinkNotes[Math.floor(Math.random() * plinkNotes.length)];
+  const freq = 440 * Math.pow(2, (note - 69) / 12);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.38, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+  osc.connect(gain).connect(masterGain);
+  osc.start(t); osc.stop(t + 0.8);
+
+  // SPAWN COLORFUL SHAPE
+  spawnColorShape();
+}
+
+// --------------------------------------------------
+// 5. HARMONIC SHIMMER VOICE
+// --------------------------------------------------
+function shimmerVoice() {
+  const t = audioCtx.currentTime;
+  const note = shimmerArp[shimmerIndex % shimmerArp.length];
+  shimmerIndex++;
+  const freq = 440 * Math.pow(2, (note - 69) / 12);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.35, t + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
+  osc.connect(gain).connect(masterGain);
+  osc.start(t); osc.stop(t + 2.5);
+
+  // PULSE CENTER CORE
+  centerCore.pulse = 3;
+}
+
+// --------------------------------------------------
+// 6. CLEAN KICK = BEAM
+// --------------------------------------------------
+let beams = [];
+
+function playKick() {
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(100, t);
+  osc.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+  gain.gain.setValueAtTime(0.9, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+  osc.connect(gain).connect(masterGain);
+  osc.start(t); osc.stop(t + 0.4);
+
+  // BEAM TO NEAREST SHAPE
+  if (shapes.length > 0) {
+    const target = shapes.reduce((a, b) => 
+      Math.hypot(a.x - innerWidth/2, a.y - innerHeight/2) < 
+      Math.hypot(b.x - innerWidth/2, b.y - innerHeight/2) ? a : b
+    );
+    beams.push({
+      x: innerWidth/2,
+      y: innerHeight/2,
+      tx: target.x,
+      ty: target.y,
+      life: 1
+    });
+  }
+}
+
+// --------------------------------------------------
+// 7. Agentic Music
+// --------------------------------------------------
 function musicStep() {
   step = (step + 1) % 8;
-  // your music code here
+  if (step % 2 === 0) playPlink();
+  if (step % 4 === 0) playKick();
 }
 
-function shimmerVoice() {
-  shimmerIndex = (shimmerIndex + 1) % shimmerArp.length;
-  // your shimmer code here
+// --------------------------------------------------
+// 8. CENTER CORE (WHITE, GLOWING)
+// --------------------------------------------------
+let centerCore = {
+  x: innerWidth / 2,
+  y: innerHeight / 2,
+  r: 120,
+  pulse: 1,
+  color: '#ffffff'
+};
+
+// --------------------------------------------------
+// 9. COLORFUL SHAPES
+// --------------------------------------------------
+let shapes = [];
+
+function spawnColorShape() {
+  shapes.push({
+    x: innerWidth/2,
+    y: innerHeight/2,
+    r: 40 + Math.random() * 50,
+    sides: 3 + Math.floor(Math.random() * 4),
+    rot: 0,
+    rotSpeed: (Math.random() - 0.5) * 0.07,
+    color: ['#00ffff','#ff00ff','#39ff14','#ff00aa','#ffaa00'][Math.floor(Math.random()*5)],
+    pulse: 2,
+    vx: (Math.random() - 0.5) * 6,
+    vy: (Math.random() - 0.5) * 6,
+    fade: 1
+  });
 }
 
-// === ANIMATION ===
+// --------------------------------------------------
+// 10. Beams
+// --------------------------------------------------
+function drawBeams() {
+  beams = beams.filter(b => {
+    b.life *= 0.92;
+    const dx = b.tx - b.x;
+    const dy = b.ty - b.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 10) {
+      b.x += dx * 0.2;
+      b.y += dy * 0.2;
+    }
+
+    ctx.strokeStyle = `rgba(0,255,255,${b.life})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(innerWidth/2, innerHeight/2);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+
+    shapes = shapes.filter(s => {
+      if (Math.hypot(s.x - b.x, s.y - b.y) < s.r) {
+        s.pulse = 4;
+        s.fade = 0.7;
+        setTimeout(() => shapes = shapes.filter(sh => sh !== s), 300);
+        return false;
+      }
+      return true;
+    });
+
+    return b.life > 0.1;
+  });
+}
+
+// --------------------------------------------------
+// 11. Draw Shape
+// --------------------------------------------------
+function drawShape(shape) {
+  shape.rot += shape.rotSpeed;
+  shape.pulse *= 0.92;
+  shape.r *= 0.995;
+  shape.fade *= 0.98;
+
+  ctx.save();
+  ctx.translate(shape.x, shape.y);
+  ctx.rotate(shape.rot);
+  ctx.globalAlpha = shape.fade;
+
+  const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, shape.r * (1 + shape.pulse));
+  grad.addColorStop(0, shape.color);
+  grad.addColorStop(0.5, shape.color + '88');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+
+  ctx.beginPath();
+  for (let i = 0; i < shape.sides; i++) {
+    const angle = (i / shape.sides) * Math.PI * 2;
+    const x = Math.cos(angle) * shape.r;
+    const y = Math.sin(angle) * shape.r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.shadowBlur = 100 + shape.pulse * 200;
+  ctx.shadowColor = shape.color;
+  ctx.fill();
+  ctx.restore();
+
+  shape.x += shape.vx;
+  shape.y += shape.vy;
+  shape.vx *= 0.98; shape.vy *= 0.98;
+
+  if (shape.x < 0 || shape.x > innerWidth) shape.vx *= -1;
+  if (shape.y < 0 || shape.y > innerHeight) shape.vy *= -1;
+
+  if (shape.r < 10 || shape.fade < 0.1) shapes = shapes.filter(s => s !== shape);
+}
+
+// --------------------------------------------------
+// 12. Draw Center Core
+// --------------------------------------------------
+function drawCore() {
+  centerCore.pulse *= 0.96;
+  const grad = ctx.createRadialGradient(centerCore.x, centerCore.y, 0, centerCore.x, centerCore.y, centerCore.r * (1 + centerCore.pulse));
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.5, '#ffffff88');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+
+  ctx.beginPath();
+  ctx.arc(centerCore.x, centerCore.y, centerCore.r * (1 + centerCore.pulse), 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.shadowBlur = 150 + centerCore.pulse * 250;
+  ctx.shadowColor = '#ffffff';
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+// --------------------------------------------------
+// 13. Animation
+// --------------------------------------------------
 function animate() {
-  animationId = requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
   ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  drawCosmos();
+
+  drawRain();
+  drawCore();
+  shapes.forEach(drawShape);
+  drawBeams();
 }
 
-let isPlaying = false;
-async function start() {
-  if (isPlaying) return;
-  initAudio();
-  initCosmos();
-  musicInterval = setInterval(musicStep, 200);
-  shimmerInterval = setInterval(shimmerVoice, 800);
-  animationId = requestAnimationFrame(animate);
-  isPlaying = true;
-}
-
-function pause() {
-  if (!isPlaying) return;
-  clearInterval(musicInterval);
-  clearInterval(shimmerInterval);
-  if (animationId) cancelAnimationFrame(animationId);
-  isPlaying = false;
-}
-
-window.addEventListener('message', e => {
-  if (e.data.action === 'unlocked') start();
-  if (e.data.action === 'play' && !isPlaying) start();
-  if (e.data.action === 'pause' && isPlaying) pause();
-  if (e.data.action === 'tabHidden') pause();
-  if (e.data.action === 'tabVisible' && isPlaying) start();
-});
-
-const check = setInterval(() => {
-  if (window.top && window.top.audioUnlocked) {
-    clearInterval(check);
-    start();
-  }
-}, 100);
+// --------------------------------------------------
+// 14. AUTO-START
+// --------------------------------------------------
+setTimeout(() => {
+  unlockAudio();
+  initRain();
+}, 500);
 </script>
 
 </body>
