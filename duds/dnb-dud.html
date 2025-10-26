@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibraTronix — Drum & Bass Orbs</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+// === GLOBALS ===
+let isPlaying = false;
+let audioCtx, compressor, masterGain;
+let step = 0;
+let animationId = null;
+let musicInterval = null;
+let activeOscillators = [];
+
+// === CANVAS ===
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// === ORBS ===
+let drumOrb = { x: innerWidth * 0.2, y: innerHeight/2, r: 120, pulse: 0, color: '#ff3300' };
+let bassOrb = { x: innerWidth * 0.8, y: innerHeight/2, r: 120, pulse: 0, color: '#00ffcc' };
+
+// === AUDIO SETUP ===
+async function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -24;
+  compressor.knee.value = 12;
+  compressor.ratio.value = 12;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.2;
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 1.8;
+
+  compressor.connect(masterGain);
+  masterGain.connect(audioCtx.destination);
+}
+
+function stopAllOscillators() {
+  activeOscillators.forEach(osc => {
+    try { osc.stop(); } catch(e) {}
+  });
+  activeOscillators = [];
+}
+
+// === DRUM INSTRUMENTS ===
+function playKick() {
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
+  gain.gain.setValueAtTime(1.6, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+  osc.connect(gain).connect(compressor);
+  osc.start(t); osc.stop(t + 0.4);
+  activeOscillators.push(osc);
+}
+
+function playSnare() {
+  const t = audioCtx.currentTime;
+  const noise = audioCtx.createBufferSource();
+  const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.15, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  noise.buffer = buffer;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(1.1, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  noise.connect(gain).connect(compressor);
+  noise.start(t);
+}
+
+function playHiHat() {
+  const t = audioCtx.currentTime;
+  const noise = audioCtx.createBufferSource();
+  const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.05, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  noise.buffer = buffer;
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'highpass';
+  filter.frequency.value = 7000;
+  gain.gain.setValueAtTime(0.5, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  noise.connect(filter).connect(gain).connect(compressor);
+  noise.start(t);
+}
+
+// === BASS ===
+function playBass() {
+  const t = audioCtx.currentTime;
+  const freq = 440 * Math.pow(2, (48 - 69) / 12);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.8, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  osc.connect(gain).connect(compressor);
+  osc.start(t); osc.stop(t + 0.3);
+  activeOscillators.push(osc);
+}
+
+// === AGENTIC DRUM & BASS STEP ===
+function dnbStep() {
+  step = (step + 1) % 8;
+
+  // DRUM (Drum Orb)
+  if (step % 2 === 0) playKick();
+  if (step % 4 === 2) playSnare();
+  if (step % 2 === 1) playHiHat();
+
+  // BASS (Bass Orb)
+  if (step % 2 === 0) playBass();
+
+  // Color sync
+  drumOrb.color = step % 8 < 4 ? '#ff3300' : '#ff6600';
+  bassOrb.color = step % 8 < 4 ? '#00ffcc' : '#00ccff';
+
+  drumOrb.pulse *= 0.85;
+  bassOrb.pulse *= 0.85;
+}
+
+// === DRAW ORB ===
+function drawOrb(orb) {
+  const gradient = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r * (1 + orb.pulse));
+  gradient.addColorStop(0, orb.color);
+  gradient.addColorStop(0.7, orb.color + '99');
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(orb.x, orb.y, orb.r * (1 + orb.pulse), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowBlur = 120 + orb.pulse * 220;
+  ctx.shadowColor = orb.color;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+// === ANIMATION ===
+function animate() {
+  animationId = requestAnimationFrame(animate);
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Float orbs
+  drumOrb.x = innerWidth * 0.35 + Math.sin(Date.now() * 0.001) * 80;
+  drumOrb.y = innerHeight/2 + Math.cos(Date.now() * 0.0008) * 60;
+  bassOrb.x = innerWidth * 0.65 + Math.sin(Date.now() * 0.0012) * 80;
+  bassOrb.y = innerHeight/2 + Math.cos(Date.now() * 0.0009) * 60;
+
+  drawOrb(drumOrb);
+  drawOrb(bassOrb);
+}
+
+// === START / PAUSE ===
+async function start() {
+  if (isPlaying) return;
+  await initAudio();
+  musicInterval = setInterval(dnbStep, 353); // 170 BPM
+  animationId = requestAnimationFrame(animate);
+  isPlaying = true;
+}
+
+function pause() {
+  if (!isPlaying) return;
+  clearInterval(musicInterval);
+  if (animationId) cancelAnimationFrame(animationId);
+  stopAllOscillators();
+  isPlaying = false;
+}
+
+// === LISTEN FOR CONTROL ===
+window.addEventListener('message', (e) => {
+  if (e.data.action === 'unlocked') start();
+  if (e.data.action === 'play' && !isPlaying) start();
+  if (e.data.action === 'pause' && isPlaying) pause();
+  if (e.data.action === 'tabHidden') pause();
+  if (e.data.action === 'tabVisible' && isPlaying) start();
+});
+
+// === AUTO-START AFTER UNLOCK ===
+const check = setInterval(() => {
+  if (window.top && window.top.audioUnlocked) {
+    clearInterval(check);
+    start();
+  }
+}, 100);
+</script>
+
+</body>
+</html>
