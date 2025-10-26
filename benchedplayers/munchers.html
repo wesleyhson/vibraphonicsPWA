@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VibraTronix — SLOPPY D&B ORB SWARM (FACE SITTING EDITION)</title>
+  <title>VibraTronix — SLoppy D&B Orbs (CLIT HUM)</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
@@ -18,6 +18,7 @@
   // === GLOBALS ===
   let isPlaying = false;
   let audioCtx, compressor, masterGain;
+  let step = 0;
   let animationId = null;
   let musicInterval = null;
   let activeOscillators = [];
@@ -27,13 +28,38 @@
   let collisionCount = 0;
   let clitHum = false;
   let humOsc = null;
-  let orbs = [];
+
+  // === ORBS (WITH WILD VELOCITY) ===
+  let drumOrb = { 
+    x: innerWidth * 0.35, 
+    y: innerHeight/2, 
+    r: 120, 
+    pulse: 0, 
+    color: '#ff0066',
+    vx: 6 + Math.random() * 4,
+    vy: (Math.random() - 0.5) * 8
+  };
+  let bassOrb = { 
+    x: innerWidth * 0.65, 
+    y: innerHeight/2, 
+    r: 120, 
+    pulse: 0, 
+    color: '#00ffcc',
+    vx: -(6 + Math.random() * 4),
+    vy: (Math.random() - 0.5) * 8
+  };
 
   // === CANVAS ===
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
-  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
-  resize(); window.addEventListener('resize', resize);
+  function resize() { 
+    canvas.width = innerWidth; 
+    canvas.height = innerHeight; 
+    drumOrb.x = innerWidth * 0.35;
+    bassOrb.x = innerWidth * 0.65;
+  }
+  resize(); 
+  window.addEventListener('resize', resize);
 
   // === AUDIO SETUP ===
   async function initAudio() {
@@ -60,7 +86,7 @@
     activeOscillators = [];
   }
 
-  // === SLOPPY D&B DRUMS ===
+  // === SLoppy D&B DRUMS ===
   function playKick() {
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
@@ -108,20 +134,17 @@
     noise.start(t);
   }
 
-  // === SUB BASS (WEIRD & DEEP) ===
-  function playSubBass() {
+  function playBass() {
     const t = audioCtx.currentTime;
+    const freq = 440 * Math.pow(2, (48 - 69) / 12);
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    const filter = audioCtx.createBiquadFilter();
     osc.type = 'sawtooth';
-    osc.frequency.value = 40 + Math.random() * 20;
-    filter.type = 'lowpass';
-    filter.frequency.value = 120 + Math.random() * 80;
+    osc.frequency.value = freq;
     gain.gain.setValueAtTime(1.2, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-    osc.connect(filter).connect(gain).connect(masterGain);
-    osc.start(t); osc.stop(t + 0.6);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    osc.connect(gain).connect(compressor);
+    osc.start(t); osc.stop(t + 0.28);
     activeOscillators.push(osc);
   }
 
@@ -160,160 +183,138 @@
     activeOscillators.push(osc);
   }
 
-  // === ORB CLASS ===
-  class Orb {
-    constructor(x, y, r, color) {
-      this.x = x;
-      this.y = y;
-      this.r = r;
-      this.pulse = 0;
-      this.color = color;
-      this.vx = (Math.random() - 0.5) * 8;
-      this.vy = (Math.random() - 0.5) * 8;
-      this.eyeSize = r * 0.3;
-      this.pupilSize = this.eyeSize * 0.4;
-      this.eyeOffset = r * 0.5;
-      this.eyeAngle = Math.atan2(this.vy, this.vx);
-    }
+  // === COLLISION DETECTION + SLOPPY SECONDS + MUSIC AGENCY ===
+  function checkCollision() {
+    const dx = bassOrb.x - drumOrb.x;
+    const dy = bassOrb.y - drumOrb.y;
+    const dist = Math.hypot(dx, dy);
+    const minDist = drumOrb.r + bassOrb.r;
 
-    update() {
-      this.vx += (Math.random() - 0.5) * 0.8;
-      this.vy += (Math.random() - 0.5) * 0.8;
-      this.vx *= 0.97; this.vy *= 0.97;
-      this.x += this.vx;
-      this.y += this.vy;
+    if (dist < minDist) {
+      playPing();
+      playKick();
+      playBass();
+      drumOrb.pulse = 5;
+      bassOrb.pulse = 5;
 
-      // Bounce off walls
-      if (this.x - this.r < 0) { this.x = this.r; this.vx *= -0.8; playPing(); this.pulse = 3; }
-      if (this.x + this.r > innerWidth) { this.x = innerWidth - this.r; this.vx *= -0.8; playPing(); this.pulse = 3; }
-      if (this.y - this.r < 0) { this.y = this.r; this.vy *= -0.8; playPing(); this.pulse = 3; }
-      if (this.y + this.r > innerHeight) { this.y = innerHeight - this.r; this.vy *= -0.8; playPing(); this.pulse = 3; }
+      // SLOPPY SECONDS: CLIT HUM
+      startClitHum();
 
-      this.eyeAngle = Math.atan2(this.vy, this.vx);
-    }
+      // Normalize direction
+      const nx = dx / dist;
+      const ny = dy / dist;
 
-    draw() {
-      const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * (1 + this.pulse));
-      gradient.addColorStop(0, this.color);
-      gradient.addColorStop(0.7, this.color + 'cc');
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.r * (1 + this.pulse), 0, Math.PI * 2);
-      ctx.fill();
+      // Separate
+      const overlap = minDist - dist;
+      drumOrb.x -= nx * overlap * 0.5;
+      drumOrb.y -= ny * overlap * 0.5;
+      bassOrb.x += nx * overlap * 0.5;
+      bassOrb.y += ny * overlap * 0.5;
 
-      ctx.shadowBlur = 120 + this.pulse * 300;
-      ctx.shadowColor = this.color;
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      // Bounce velocity
+      const v1 = { x: drumOrb.vx, y: drumOrb.vy };
+      const v2 = { x: bassOrb.vx, y: bassOrb.vy };
 
-      // EYES
-      const eyeX = this.x + Math.cos(this.eyeAngle) * this.eyeOffset;
-      const eyeY = this.y + Math.sin(this.eyeAngle) * this.eyeOffset;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(eyeX, eyeY, this.eyeSize, 0, Math.PI * 2);
-      ctx.fill();
+      drumOrb.vx = v2.x * 1.1;
+      drumOrb.vy = v2.y * 1.1;
+      bassOrb.vx = v1.x * 1.1;
+      bassOrb.vy = v1.y * 1.1;
 
-      // PUPILS
-      const pupilX = eyeX + Math.cos(this.eyeAngle) * this.eyeSize * 0.4;
-      const pupilY = eyeY + Math.sin(this.eyeAngle) * this.eyeSize * 0.4;
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.arc(pupilX, pupilY, this.pupilSize, 0, Math.PI * 2);
-      ctx.fill();
-
-      this.pulse *= 0.85;
+      // SPEED BOOST: 20 seconds
+      currentBPM = baseBPM * 1.5;
+      boostEndTime = Date.now() + 20000;
+      collisionCount++;
     }
   }
 
-  // === COLLISION + SLOPPY SECONDS ===
-  function checkCollisions() {
-    for (let i = 0; i < orbs.length; i++) {
-      for (let j = i + 1; j < orbs.length; j++) {
-        const a = orbs[i], b = orbs[j];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.hypot(dx, dy);
-        const minDist = a.r + b.r;
-
-        if (dist < minDist) {
-          playPing();
-          playKick();
-          playSubBass();
-          a.pulse = 5;
-          b.pulse = 5;
-
-          startClitHum();
-
-          const nx = dx / dist;
-          const ny = dy / dist;
-          const overlap = minDist - dist;
-          a.x -= nx * overlap * 0.5;
-          a.y -= ny * overlap * 0.5;
-          b.x += nx * overlap * 0.5;
-          b.y += ny * overlap * 0.5;
-
-          const v1 = { x: a.vx, y: a.vy };
-          const v2 = { x: b.vx, y: b.vy };
-          a.vx = v2.x * 1.2;
-          a.vy = v2.y * 1.2;
-          b.vx = v1.x * 1.2;
-          b.vy = v1.y * 1.2;
-
-          currentBPM = baseBPM * 1.6;
-          boostEndTime = Date.now() + 20000;
-          collisionCount++;
-        }
-      }
+  // === WALL BOUNCE + PING ===
+  function bounceOffWalls(orb) {
+    let bounced = false;
+    if (orb.x - orb.r < 0) { orb.x = orb.r; orb.vx *= -0.8; bounced = true; }
+    if (orb.x + orb.r > innerWidth) { orb.x = innerWidth - orb.r; orb.vx *= -0.8; bounced = true; }
+    if (orb.y - orb.r < 0) { orb.y = orb.r; orb.vy *= -0.8; bounced = true; }
+    if (orb.y + orb.r > innerHeight) { orb.y = innerHeight - orb.r; orb.vy *= -0.8; bounced = true; }
+    if (bounced) {
+      playPing();
+      orb.pulse = 3;
     }
   }
 
-  // === STEP ===
+  // === STEP (170 BPM → BOOSTED) ===
   function dnbStep() {
+    step = (step + 1) % 8;
+
     // DRUM
     if (step % 2 === 0) playKick();
     if (step % 4 === 2) playSnare();
     if (step % 2 === 1) playHiHat();
 
-    // SUB BASS
-    if (step % 4 === 0) playSubBass();
+    // BASS
+    if (step % 2 === 0) playBass();
 
-    step = (step + 1) % 8;
+    // Color sync
+    drumOrb.color = step % 8 < 4 ? '#ff0066' : '#ff3399';
+    bassOrb.color = step % 8 < 4 ? '#00ffcc' : '#00ffff';
 
+    drumOrb.pulse *= 0.85;
+    bassOrb.pulse *= 0.85;
+
+    // Update BPM
     if (Date.now() > boostEndTime) {
       currentBPM = baseBPM;
       stopClitHum();
     }
   }
 
+  // === DRAW ORB ===
+  function drawOrb(orb) {
+    const gradient = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r * (1 + orb.pulse));
+    gradient.addColorStop(0, orb.color);
+    gradient.addColorStop(0.7, orb.color + 'cc');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(orb.x, orb.y, orb.r * (1 + orb.pulse), 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 120 + orb.pulse * 300;
+    ctx.shadowColor = orb.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
   // === ANIMATION ===
   function animate() {
     animationId = requestAnimationFrame(animate);
+
     ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    orbs.forEach(orb => orb.update());
-    checkCollisions();
-    orbs.forEach(orb => orb.draw());
+    // Physics
+    drumOrb.vx += (Math.random() - 0.5) * 0.6;
+    drumOrb.vy += (Math.random() - 0.5) * 0.6;
+    drumOrb.vx *= 0.98; drumOrb.vy *= 0.98;
+    drumOrb.x += drumOrb.vx;
+    drumOrb.y += drumOrb.vy;
+
+    bassOrb.vx += (Math.random() - 0.5) * 0.6;
+    bassOrb.vy += (Math.random() - 0.5) * 0.6;
+    bassOrb.vx *= 0.98; bassOrb.vy *= 0.98;
+    bassOrb.x += bassOrb.vx;
+    bassOrb.y += bassOrb.vy;
+
+    bounceOffWalls(drumOrb);
+    bounceOffWalls(bassOrb);
+    checkCollision();
+
+    drawOrb(drumOrb);
+    drawOrb(bassOrb);
   }
 
   // === START / PAUSE ===
   async function start() {
     if (isPlaying) return;
     await initAudio();
-
-    // SPAWN 12 ORBS
-    orbs = [];
-    const colors = ['#ff0066','#ff66cc','#00ffcc','#00ffff','#ff3399','#cc33ff'];
-    for (let i = 0; i < 12; i++) {
-      const x = innerWidth * (0.2 + Math.random() * 0.6);
-      const y = innerHeight * (0.2 + Math.random() * 0.6);
-      const r = 40 + Math.random() * 30;
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      orbs.push(new Orb(x, y, r, color));
-    }
-
     musicInterval = setInterval(dnbStep, 60000 / currentBPM / 2);
     animationId = requestAnimationFrame(animate);
     isPlaying = true;
