@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibraTronix — GQOM Space Sparkle</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+  // === GLOBALS ===
+  let isPlaying = false;
+  let audioCtx, masterGain;
+  let step = 0;
+  let logStep = 0;
+  let musicInterval = null;
+  let animationId = null;
+  let activeOscillators = [];
+  let stars = [];
+  let nebula = [];
+  let shapes = [];
+  let sparkles = [];
+
+  // === CANVAS ===
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  function resize() {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // === AUDIO SETUP ===
+  async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.85;
+    masterGain.connect(audioCtx.destination);
+  }
+
+  // === STOP ALL OSCILLATORS ===
+  function stopAllOscillators() {
+    activeOscillators.forEach(osc => {
+      try { osc.stop(); } catch(e) {}
+    });
+    activeOscillators = [];
+  }
+
+  // === SPACE BACKGROUND ===
+  function initSpace() {
+    stars = Array.from({length: 400}, () => ({
+      x: Math.random() * innerWidth,
+      y: Math.random() * innerHeight,
+      r: Math.random() * 1.8,
+      twinkle: Math.random() * Math.PI * 2,
+      speed: 0.1 + Math.random() * 0.3
+    }));
+
+    nebula = Array.from({length: 6}, () => ({
+      x: Math.random() * innerWidth,
+      y: Math.random() * innerHeight,
+      r: 300 + Math.random() * 400,
+      color: ['#4a148c','#6a1b9a','#7b1fa2','#8e24aa'][Math.floor(Math.random()*4)],
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3
+    }));
+  }
+
+  function drawSpace() {
+    nebula.forEach(n => {
+      n.x += n.vx; n.y += n.vy;
+      if (n.x < -n.r) n.x = innerWidth + n.r;
+      if (n.x > innerWidth + n.r) n.x = -n.r;
+      if (n.y < -n.r) n.y = innerHeight + n.r;
+      if (n.y > innerHeight + n.r) n.y = -n.r;
+
+      const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+      grad.addColorStop(0, n.color + '18');
+      grad.addColorStop(1, n.color + '00');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    stars.forEach(s => {
+      s.x += s.speed;
+      if (s.x > innerWidth) s.x = 0;
+      const twinkle = Math.sin(Date.now()*0.001 + s.twinkle)*0.5 + 0.5;
+      ctx.fillStyle = `rgba(255,255,255,${twinkle})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  // === PLINKS ===
+  const plinkNotes = [72, 76, 79, 81, 84, 86, 88, 91];
+
+  function playPlink() {
+    const t = audioCtx.currentTime;
+    const note = plinkNotes[Math.floor(Math.random() * plinkNotes.length)];
+    const freq = 440 * Math.pow(2, (note - 69) / 12);
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.38, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.8);
+    activeOscillators.push(osc);
+
+    if (shapes.length > 0) {
+      const idx = Math.floor(Math.random() * shapes.length);
+      const shape = shapes[idx];
+      spawnSparkles(shape.x, shape.y);
+      shapes.splice(idx, 1);
+    } else {
+      spawnSparkles(innerWidth / 2, innerHeight / 2);
+    }
+  }
+
+  // === KICK (LESS BOOMY) ===
+  function playKick() {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(110, t);  // HIGHER START
+    osc.frequency.exponentialRampToValueAtTime(35, t + 0.08);
+    gain.gain.setValueAtTime(0.7, t);  // QUIETER
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.35);
+    activeOscillators.push(osc);
+  }
+
+  // === LOG DRUM ===
+  function playLogDrum(energy) {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140 + energy * 100, t);
+    osc.frequency.exponentialRampToValueAtTime(70 + energy * 50, t + 0.15);
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.6);
+    activeOscillators.push(osc);
+  }
+
+  // === MUSIC STEP ===
+  function musicStep() {
+    step = (step + 1) % 8;
+    if (step % 2 === 0) playPlink();
+    if (step % 4 === 0) playKick();
+    logStep = (logStep + 1) % 16;
+    if (logStep % 8 === 0) playLogDrum(Math.random() * 0.5);
+  }
+
+  // === SHAPES ===
+  function spawnShape() {
+    shapes.push({
+      x: innerWidth / 2,
+      y: innerHeight / 2,
+      r: 20 + Math.random() * 60,
+      sides: 3 + Math.floor(Math.random() * 6),
+      rot: 0,
+      rotSpeed: (Math.random() - 0.5) * 0.08,
+      color: ['#ff6b6b','#f9ca24','#1dd1a1','#48dbfb','#ff9ff3'][Math.floor(Math.random()*5)],
+      pulse: 2,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6
+    });
+  }
+
+  // === SPARKLES ===
+  function spawnSparkles(x, y) {
+    for (let i = 0; i < 15; i++) {
+      sparkles.push({
+        x: x,
+        y: y,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10,
+        r: 2 + Math.random() * 4,
+        life: 1,
+        color: '#ffffff'
+      });
+    }
+  }
+
+  function drawSparkles() {
+    sparkles = sparkles.filter(s => {
+      s.x += s.vx;
+      s.y += s.vy;
+      s.vx *= 0.94; s.vy *= 0.94;
+      s.life *= 0.9;
+      s.r *= 0.94;
+      ctx.fillStyle = `rgba(255,255,255,${s.life})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fill();
+      return s.life > 0.1;
+    });
+  }
+
+  // === DRAW SHAPE ===
+  function drawShape(shape) {
+    shape.rot += shape.rotSpeed;
+    shape.pulse *= 0.92;
+    shape.r *= 0.995;
+
+    ctx.save();
+    ctx.translate(shape.x, shape.y);
+    ctx.rotate(shape.rot);
+
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, shape.r * (1 + shape.pulse));
+    grad.addColorStop(0, shape.color);
+    grad.addColorStop(0.7, shape.color + '99');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    for (let i = 0; i < shape.sides; i++) {
+      const angle = (i / shape.sides) * Math.PI * 2;
+      const x = Math.cos(angle) * shape.r;
+      const y = Math.sin(angle) * shape.r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowBlur = 60 + shape.pulse * 150;
+    ctx.shadowColor = shape.color;
+    ctx.fill();
+    ctx.restore();
+
+    shape.x += shape.vx;
+    shape.y += shape.vy;
+    shape.vx *= 0.98; shape.vy *= 0.98;
+
+    if (shape.x < 0 || shape.x > innerWidth) shape.vx *= -1;
+    if (shape.y < 0 || shape.y > innerHeight) shape.vy *= -1;
+
+    if (shape.r < 10) shapes = shapes.filter(s => s !== shape);
+  }
+
+  // === ANIMATION ===
+  function animate() {
+    requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawSpace();
+    shapes.forEach(drawShape);
+    drawSparkles();
+  }
+
+  // === START / PAUSE ===
+  async function start() {
+    if (isPlaying) return;
+    await initAudio();
+    initSpace();
+    spawnShape();
+    musicInterval = setInterval(musicStep, 200);
+    animationId = requestAnimationFrame(animate);
+    isPlaying = true;
+  }
+
+  function pause() {
+    if (!isPlaying) return;
+    clearInterval(musicInterval);
+    if (animationId) cancelAnimationFrame(animationId);
+    stopAllOscillators();
+    isPlaying = false;
+  }
+
+  // === LISTEN FOR UNLOCK + PLAY/PAUSE + TAB ===
+  window.addEventListener('message', (e) => {
+    if (e.data.action === 'unlocked') start();
+    if (e.data.action === 'play' && !isPlaying) start();
+    if (e.data.action === 'pause' && isPlaying) pause();
+    if (e.data.action === 'tabHidden') pause();
+    if (e.data.action === 'tabVisible' && isPlaying) start();
+  });
+
+  // === AUTO-START AFTER UNLOCK ===
+  const check = setInterval(() => {
+    if (window.top && window.top.audioUnlocked) {
+      clearInterval(check);
+      start();
+    }
+  }, 100);
+</script>
+
+</body>
+</html>
