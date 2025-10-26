@@ -5,20 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Test Vibraphone</title>
   <style>
-    body, html { margin:0; padding:0; height:100%; background:#000; display:flex; align-items:center; justify-content:center; }
-    button { padding:20px 40px; font-size:24px; background:#0f0; color:#000; border:none; border-radius:12px; cursor:pointer; }
+    body, html { margin:0; padding:0; height:100%; background:#000; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+    button { padding:20px 40px; font-size:24px; background:#0f0; color:#000; border:none; border-radius:12px; cursor:pointer; margin:10px; }
+    #status { color:#0f0; font-family:monospace; text-align:center; margin-bottom:20px; }
   </style>
 </head>
 <body>
-  <button id="start">CLICK TO START SOUND</button>
+  <div id="status">Tap to vibe</div>
+  <button id="start">UNLOCK & PLAY</button>
 
   <script>
     const btn = document.getElementById('start');
+    const status = document.getElementById('status');
     let audioCtx;
     let osc, mod, gain, modGain;
     let isPlaying = false;
 
-    // === LISTEN FOR PARENT MESSAGES ===
+    // Listen for parent messages
     window.addEventListener('message', (e) => {
       if (e.data.action === 'play' && !isPlaying) {
         startSound();
@@ -30,7 +33,11 @@
 
     function startSound() {
       if (isPlaying) return;
-      audioCtx = new AudioContext();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      } else {
+        audioCtx = new AudioContext();
+      }
       osc = audioCtx.createOscillator();
       mod = audioCtx.createOscillator();
       gain = audioCtx.createGain();
@@ -48,8 +55,8 @@
       osc.start();
       gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
 
-      btn.textContent = "PLAYING... (looping)";
-      btn.disabled = true;
+      status.textContent = "Vibing...";
+      btn.textContent = "PAUSE";
       isPlaying = true;
     }
 
@@ -58,12 +65,25 @@
       if (osc) osc.stop();
       if (mod) mod.stop();
       isPlaying = false;
-      btn.textContent = "CLICK TO START SOUND";
-      btn.disabled = false;
+      status.textContent = "Paused";
+      btn.textContent = "RESUME";
     }
 
-    // Optional: manual click fallback
-    btn.addEventListener('click', startSound);
+    // Manual toggle (fallback for mobile)
+    btn.addEventListener('click', () => {
+      if (isPlaying) {
+        stopSound();
+      } else {
+        startSound();
+      }
+    });
+
+    // Auto-resume on visibility (for scroll)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && !isPlaying) {
+        startSound();
+      }
+    });
   </script>
 </body>
 </html>
