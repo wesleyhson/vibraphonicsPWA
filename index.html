@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Vibraphonics PWA</title>
+  <title>Vibraphonics</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     html, body { height:100%; overflow:hidden; background:#111; }
@@ -12,7 +12,6 @@
       overflow-y: scroll;
       scroll-snap-type: y mandatory;
       -webkit-overflow-scrolling: touch;
-      scroll-behavior: smooth;
     }
     iframe {
       width:100%;
@@ -21,41 +20,18 @@
       display:block;
       scroll-snap-align: start;
     }
-    .loading {
-      color:#0f0;
-      text-align:center;
-      padding:2rem;
-      font-family: monospace;
-      font-size:1.2rem;
-    }
   </style>
 </head>
 <body>
-  <div id="feed">
-    <div class="loading">Loading applets...</div>
-  </div>
+  <div id="feed"></div>
 
   <script>
-    // --- RUN ON LOAD ---
     document.addEventListener('DOMContentLoaded', () => {
       const feed = document.getElementById('feed');
-      const loading = feed.querySelector('.loading');
-
-      const applets = ['test-applet.html'];
-
-      if (applets.length === 0) {
-        loading.textContent = "No applets yet!";
-        return;  // NOW LEGAL — inside function!
-      }
-
-      loading.remove();
-      applets.forEach(file => {
-        const iframe = document.createElement('iframe');
-        iframe.src = '/dropzone/' + file;
-        iframe.loading = 'lazy';
-        iframe.allow = 'autoplay';
-        feed.appendChild(iframe);
-      });
+      const iframe = document.createElement('iframe');
+      iframe.src = '/vibraphonicsPWA/dropzone/test-applet.html';
+      iframe.loading = 'lazy';
+      feed.appendChild(iframe);
     });
   </script>
 </body>
