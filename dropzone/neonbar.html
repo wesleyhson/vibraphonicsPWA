@@ -14,32 +14,32 @@
   <canvas id="bars"></canvas>
 
   <script>
-    // === USER GESTURE FALLBACK FOR IFRAME ===
-    let userGesture = false;
-    document.addEventListener('click', () => { userGesture = true; }, { once: true });
+    // === LISTEN FOR PLAY/PAUSE FROM PARENT ===
+    let isPlaying = false;
+    window.addEventListener('message', (e) => {
+      if (e.data.action === 'play' && !isPlaying) {
+        startSynth();
+      }
+      if (e.data.action === 'pause' && isPlaying) {
+        stopSynth();
+      }
+    });
 
-    // === START SYNTH ONLY AFTER GESTURE OR UNLOCKED ===
+    // === START / STOP LOGIC ===
     async function startSynth() {
+      if (isPlaying) return;
       await Tone.start();
-      console.log('Tone.js started');
       Tone.Transport.bpm.value = 120;
       Tone.Transport.start();
       initBars();
       animate();
+      isPlaying = true;
     }
 
-    // === AUTO-START IF IN TOP WINDOW (standalone) ===
-    if (window.top === window) {
-      window.addEventListener('load', startSynth);
-    } 
-    // === IN IFRAME: WAIT FOR USER GESTURE OR PARENT UNLOCK ===
-    else {
-      const checkInterval = setInterval(() => {
-        if (userGesture || Tone.context.state === 'running') {
-          clearInterval(checkInterval);
-          startSynth();
-        }
-      }, 100);
+    function stopSynth() {
+      if (!isPlaying) return;
+      Tone.Transport.stop();
+      isPlaying = false;
     }
 
     // === 8 NEON BARS + SYNTHS ===
@@ -53,18 +53,13 @@
     const barSpacing = 80;
     const startX = (canvas.width - (barCount * barSpacing)) / 2 + 40;
 
-    const colors = [
-      '#ff004d', '#ff6600', '#ffcc00', '#00ff66',
-      '#00ccff', '#0066ff', '#cc00ff', '#ffffff'
-    ];
-
+    const colors = ['#ff004d','#ff6600','#ffcc00','#00ff66','#00ccff','#0066ff','#cc00ff','#ffffff'];
     const synths = [];
-    const notes = ['C3', 'D3', 'E3', 'G3', 'A3', 'C4', 'D4', 'E4'];
+    const notes = ['C3','D3','E3','G3','A3','C4','D4','E4'];
     const heights = new Array(barCount).fill(0);
     const targets = new Array(barCount).fill(0);
     let kickPulse = 0;
 
-    // Create 8 synths
     for (let i = 0; i < barCount; i++) {
       const synth = new Tone.PolySynth(Tone.Synth, {
         oscillator: { type: "sine" },
@@ -74,68 +69,48 @@
       synths.push(synth);
     }
 
-    // Kick for pulse
     const kick = new Tone.MembraneSynth({
       envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 }
     }).toDestination();
 
-    new Tone.Loop(t => {
-      kick.triggerAttackRelease("C1", "8n", t);
-    }, "4n").start(0);
-
-    // Random melody across bars
+    new Tone.Loop(t => kick.triggerAttackRelease("C1", "8n", t), "4n").start(0);
     new Tone.Loop(t => {
       const i = Math.floor(Math.random() * barCount);
       synths[i].triggerAttackRelease(notes[i], "8n", t);
       targets[i] = 1;
     }, "2n").start(0);
 
-    // === KICK PULSE ANALYSER ===
     const analyser = new Tone.Analyser("waveform", 32);
     kick.connect(analyser);
 
-    // === INITIALIZE BARS ===
-    function initBars() {
-      // No init needed
-    }
-
-    // === ANIMATION LOOP ===
+    function initBars() {}
     function animate() {
       ctx.fillStyle = 'rgba(0,0,0,0.1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-
       const waveform = analyser.getValue();
-      踢Pulse = Math.max(kickPulse * 0.9, Math.abs(waveform[0]));
+      kickPulse = Math.max(kickPulse * 0.9, Math.abs(waveform[0]));
 
-      // Update heights
       for (let i = 0; i < barCount; i++) {
         heights[i] += (targets[i] - heights[i]) * 0.2;
         if (heights[i] < 0.01) heights[i] = 0;
         targets[i] *= 0.95;
       }
 
-      // Draw bars
       for (let i = 0; i < barCount; i++) {
         const x = startX + i * barSpacing;
         const maxH = canvas.height * 0.7;
         const h = maxH * heights[i] * (1 + kickPulse);
-
-        // Glow
         const gradient = ctx.createLinearGradient(x, canvas.height - h, x, canvas.height);
         gradient.addColorStop(0, colors[i]);
         gradient.addColorStop(1, 'rgba(0,0,0,0)');
-
         ctx.fillStyle = gradient;
         ctx.shadowBlur = 30 + kickPulse * 50;
         ctx.shadowColor = colors[i];
         ctx.fillRect(x - barWidth/2, canvas.height - h, barWidth, h);
-
-        // Core line
         ctx.fillStyle = colors[i];
         ctx.shadowBlur = 10;
         ctx.fillRect(x - 2, canvas.height - h, 4, h);
       }
-
       ctx.shadowBlur = 0;
       requestAnimationFrame(animate);
     }

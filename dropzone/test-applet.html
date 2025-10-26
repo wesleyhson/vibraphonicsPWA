@@ -15,20 +15,29 @@
   <script>
     const btn = document.getElementById('start');
     let audioCtx;
+    let osc, mod, gain, modGain;
+    let isPlaying = false;
 
-    btn.addEventListener('click', () => {
-      if (audioCtx) return;
+    // === LISTEN FOR PARENT MESSAGES ===
+    window.addEventListener('message', (e) => {
+      if (e.data.action === 'play' && !isPlaying) {
+        startSound();
+      }
+      if (e.data.action === 'pause' && isPlaying) {
+        stopSound();
+      }
+    });
+
+    function startSound() {
+      if (isPlaying) return;
       audioCtx = new AudioContext();
-
-      // Simple vibraphone-like tone (sine + FM)
-      const osc = audioCtx.createOscillator();
-      const mod = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      const modGain = audioCtx.createGain();
+      osc = audioCtx.createOscillator();
+      mod = audioCtx.createOscillator();
+      gain = audioCtx.createGain();
+      modGain = audioCtx.createGain();
 
       mod.frequency.value = 5;
       modGain.gain.value = 50;
-
       osc.frequency.value = 440;
       osc.type = 'sine';
 
@@ -41,7 +50,20 @@
 
       btn.textContent = "PLAYING... (looping)";
       btn.disabled = true;
-    });
+      isPlaying = true;
+    }
+
+    function stopSound() {
+      if (!isPlaying) return;
+      if (osc) osc.stop();
+      if (mod) mod.stop();
+      isPlaying = false;
+      btn.textContent = "CLICK TO START SOUND";
+      btn.disabled = false;
+    }
+
+    // Optional: manual click fallback
+    btn.addEventListener('click', startSound);
   </script>
 </body>
 </html>
