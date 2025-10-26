@@ -24,7 +24,7 @@
       text-align:center; padding:2rem; z-index:9999; background:var(--bg);
     }
     #landing h1 {
-      font-size:2.8rem; margin-bottom:1rem; color:var(--accent); text-shadow:var(--glow);
+           font-size:2.8rem; margin-bottom:1rem; color:var(--accent); text-shadow:var(--glow);
     }
     #landing p {
       font-size:1.2rem; margin:1rem 0; max-width:600px; line-height:1.6;
@@ -41,7 +41,8 @@
       -webkit-overflow-scrolling:touch; opacity:0; transition:opacity 0.5s;
     }
     iframe {
-      width:100%; height:100vh; border:none; display:block; scroll-snap-align:start;
+      width:100%; height:100vh; border:none; display:block;
+      scroll-snap-align:start;  /* FIXED */
       opacity:0.4; transition:opacity 0.3s;
     }
     iframe.active { opacity:1; }
@@ -55,10 +56,9 @@
     <p><strong>Procedural Web Audio Art</strong></p>
     <p>Each screen is a self-contained sound universe.</p>
     <p><strong>How to play:</strong><br>
-       1. Tap <strong>"BEGIN JOURNEY"</strong><br>
-       2. <strong>Tap each applet</strong> to unlock sound<br>
-       3. <strong>Swipe up/down</strong> to explore<br>
-       4. Only one plays at a time
+       1. Tap <strong>"BEGIN JOURNEY"</strong> to unlock sound<br>
+       2. <strong>Swipe up/down</strong> to explore<br>
+       3. Only one plays at a time
     </p>
     <button id="begin-btn">BEGIN JOURNEY</button>
   </div>
@@ -78,7 +78,7 @@
       audioUnlocked = true;
 
       const dummy = new AudioContext();
-      await dummy.resume();
+      await dummy.resume();  // UNLOCKS AUDIO FOR ALL IFRAMES
 
       landing.style.opacity = '0';
       setTimeout(() => {
