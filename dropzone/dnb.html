@@ -27,15 +27,15 @@
   let boostEndTime = 0;
   let collisionCount = 0;
 
-  // === ORBS (WITH VELOCITY) ===
+  // === ORBS (WITH INITIAL VELOCITY) ===
   let drumOrb = { 
     x: innerWidth * 0.35, 
     y: innerHeight/2, 
     r: 120, 
     pulse: 0, 
     color: '#ff3300',
-    vx: 0,
-    vy: 0
+    vx: 3 + Math.random() * 3,
+    vy: (Math.random() - 0.5) * 6
   };
   let bassOrb = { 
     x: innerWidth * 0.65, 
@@ -43,8 +43,8 @@
     r: 120, 
     pulse: 0, 
     color: '#00ffcc',
-    vx: 0,
-    vy: 0
+    vx: -(3 + Math.random() * 3),
+    vy: (Math.random() - 0.5) * 6
   };
 
   // === CANVAS ===
@@ -160,7 +160,7 @@
     activeOscillators.push(osc);
   }
 
-  // === COLLISION DETECTION + SPEED BOOST ===
+  // === COLLISION DETECTION + SPEED BOOST + TRIGGER SOUND ===
   function checkCollision() {
     const dx = bassOrb.x - drumOrb.x;
     const dy = bassOrb.y - drumOrb.y;
@@ -170,6 +170,14 @@
     if (dist < minDist) {
       // Play ping
       playPing();
+
+      // Trigger drum + bass
+      playKick();
+      playBass();
+
+      // Glow
+      drumOrb.pulse = 4;
+      bassOrb.pulse = 4;
 
       // Normalize direction
       const nx = dx / dist;
@@ -182,7 +190,7 @@
       bassOrb.x += nx * overlap * 0.5;
       bassOrb.y += ny * overlap * 0.5;
 
-      // Bounce velocity
+            // Bounce velocity
       const v1 = { x: drumOrb.vx, y: drumOrb.vy };
       const v2 = { x: bassOrb.vx, y: bassOrb.vy };
 
@@ -195,10 +203,6 @@
       currentBPM = baseBPM * 1.4;
       boostEndTime = Date.now() + 20000;
       collisionCount++;
-
-      // Visual flash
-      drumOrb.pulse = 3;
-      bassOrb.pulse = 3;
     }
   }
 
@@ -289,15 +293,9 @@
   async function start() {
     if (isPlaying) return;
     await initAudio();
-    musicInterval = setInterval(dnbStep, 60000 / currentBPM / 2); // 16th notes
+    musicInterval = setInterval(dnbStep, 60000 / currentBPM / 2);
     animationId = requestAnimationFrame(animate);
     isPlaying = true;
-
-    // Start with gentle drift
-    drumOrb.vx = (Math.random() - 0.5) * 2;
-    drumOrb.vy = (Math.random() - 0.5) * 2;
-    bassOrb.vx = (Math.random() - 0.5) * 2;
-    bassOrb.vy = (Math.random() - 0.5) * 2;
   }
 
   function pause() {
