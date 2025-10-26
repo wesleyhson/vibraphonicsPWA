@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibraTronix — WIND CHIME ORB SWARM (GENTLE)</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+  // === GLOBALS ===
+  let isPlaying = false;
+  let audioCtx, masterGain;
+  let animationId = null;
+  let activeOscillators = [];
+  let orbs = [];
+  const MAX_ORBS = 50;
+
+  // === CANVAS ===
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+
+  // === AUDIO SETUP ===
+  async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.6;
+    masterGain.connect(audioCtx.destination);
+  }
+
+  function stopAllOscillators() {
+    activeOscillators.forEach(osc => {
+      try { osc.stop(); } catch(e) {}
+    });
+    activeOscillators = [];
+  }
+
+  // === GENTLE WIND CHIME PLINK ===
+  function playWindChime() {
+    const t = audioCtx.currentTime;
+    const notes = [72, 74, 76, 79, 81, 83, 86, 88, 91, 93]; // High C major + extensions
+    const note = notes[Math.floor(Math.random() * notes.length)];
+    const freq = 440 * Math.pow(2, (note - 69) / 12);
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+
+    // Gentle attack, long decay
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.25, t + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 3.0);
+
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 3.0);
+    activeOscillators.push(osc);
+  }
+
+  // === ORB CLASS (ETHEREAL) ===
+  class Orb {
+    constructor(x, y, r, color) {
+      this.x = x;
+      this.y = y;
+      this.r = r;
+      this.pulse = 0;
+      this.color = color;
+      this.vx = (Math.random() - 0.5) * 2.5;
+      this.vy = (Math.random() - 0.5) * 2.5;
+      this.eyeSize = r * 0.3;
+      this.pupilSize = this.eyeSize * 0.4;
+      this.eyeOffset = r * 0.5;
+      this.eyeAngle = Math.atan2(this.vy, this.vx);
+    }
+
+    update() {
+      this.vx += (Math.random() - 0.5) * 0.2;
+      this.vy += (Math.random() - 0.5) * 0.2;
+      this.vx *= 0.985; this.vy *= 0.985;
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Bounce off walls
+      if (this.x - this.r < 0) { this.x = this.r; this.vx *= -0.85; this.pulse = 1; }
+      if (this.x + this.r > innerWidth) { this.x = innerWidth - this.r; this.vx *= -0.85; this.pulse = 1; }
+      if (this.y - this.r < 0) { this.y = this.r; this.vy *= -0.85; this.pulse = 1; }
+      if (this.y + this.r > innerHeight) { this.y = innerHeight - this.r; this.vy *= -0.85; this.pulse = 1; }
+
+      this.eyeAngle = Math.atan2(this.vy, this.vx);
+      this.pulse *= 0.92;
+    }
+
+    draw() {
+      const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * (1 + this.pulse));
+      gradient.addColorStop(0, this.color);
+      gradient.addColorStop(0.7, this.color + '88');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * (1 + this.pulse), 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowBlur = 60 + this.pulse * 150;
+      ctx.shadowColor = this.color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // EYES
+      const eyeX = this.x + Math.cos(this.eyeAngle) * this.eyeOffset;
+      const eyeY = this.y + Math.sin(this.eyeAngle) * this.eyeOffset;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, this.eyeSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // PUPILS
+      const pupilX = eyeX + Math.cos(this.eyeAngle) * this.eyeSize * 0.4;
+      const pupilY = eyeY + Math.sin(this.eyeAngle) * this.eyeSize * 0.4;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(pupilX, pupilY, this.pupilSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // === COLLISION + WIND CHIME ===
+  function checkCollisions() {
+    for (let i = 0; i < orbs.length; i++) {
+      for (let j = i + 1; j < orbs.length; j++) {
+        const a = orbs[i], b = orbs[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        const minDist = a.r + b.r;
+
+        if (dist < minDist) {
+          playWindChime();
+          a.pulse = 1.5;
+          b.pulse = 1.5;
+
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const overlap = minDist - dist;
+          a.x -= nx * overlap * 0.5;
+          a.y -= ny * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.y += ny * overlap * 0.5;
+
+          const v1 = { x: a.vx, y: a.vy };
+          const v2 = { x: b.vx, y: b.vy };
+          a.vx = v2.x * 0.88;
+          a.vy = v2.y * 0.88;
+          b.vx = v1.x * 0.88;
+          b.vy = v1.y * 0.88;
+        }
+      }
+    }
+  }
+
+  // === ANIMATION ===
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    orbs.forEach(orb => orb.update());
+    checkCollisions();
+    orbs.forEach(orb => orb.draw());
+  }
+
+  // === START / PAUSE ===
+  async function start() {
+    if (isPlaying) return;
+    await initAudio();
+
+    // SPAWN 50 ORBS
+    orbs = [];
+    const colors = ['#ff99cc','#99ccff','#ccff99','#ffcc99','#cc99ff','#99ffcc'];
+    for (let i = 0; i < MAX_ORBS; i++) {
+      const x = innerWidth * (0.1 + Math.random() * 0.8);
+      const y = innerHeight * (0.1 + Math.random() * 0.8);
+      const r = 18 + Math.random() * 18;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      orbs.push(new Orb(x, y, r, color));
+    }
+
+    animationId = requestAnimationFrame(animate);
+    isPlaying = true;
+  }
+
+  function pause() {
+    if (!isPlaying) return;
+    if (animationId) cancelAnimationFrame(animationId);
+    stopAllOscillators();
+    isPlaying = false;
+  }
+
+  // === LISTEN FOR CONTROL ===
+  window.addEventListener('message', (e) => {
+    if (e.data.action === 'unlocked') start();
+    if (e.data.action === 'play' && !isPlaying) start();
+    if (e.data.action === 'pause' && isPlaying) pause();
+    if (e.data.action === 'tabHidden') pause();
+    if (e.data.action === 'tabVisible' && isPlaying) start();
+  });
+
+  // === AUTO-START AFTER UNLOCK ===
+  const check = setInterval(() => {
+    if (window.top && window.top.audioUnlocked) {
+      clearInterval(check);
+      start();
+    }
+  }, 100);
+</script>
+
+</body>
+</html>
