@@ -73,20 +73,27 @@
     let audioUnlocked = false;
     let observer;
 
-    beginBtn.addEventListener('click', async () => {
-      if (audioUnlocked) return;
-      audioUnlocked = true;
+beginBtn.addEventListener('click', async () => {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
 
-      const dummy = new AudioContext();
-      await dummy.resume();  // UNLOCKS AUDIO FOR ALL IFRAMES
+  const dummy = new AudioContext();
+  await dummy.resume();  // UNLOCK AUDIO
 
-      landing.style.opacity = '0';
-      setTimeout(() => {
-        landing.remove();
-        feed.style.opacity = '1';
-        loadApplets();
-      }, 500);
+  // TELL ALL IFRAMES: "AUDIO IS UNLOCKED"
+  setTimeout(() => {
+    document.querySelectorAll('iframe').forEach(iframe => {
+      iframe.contentWindow.postMessage({ action: 'unlocked' }, '*');
     });
+  }, 100);
+
+  landing.style.opacity = '0';
+  setTimeout(() => {
+    landing.remove();
+    feed.style.opacity = '1';
+    loadApplets();
+  }, 500);
+});
 
     async function loadApplets() {
       // === 1. GET CUSTOM ORDER FROM order.json ===
