@@ -29,8 +29,9 @@
     document.addEventListener('DOMContentLoaded', () => {
       const feed = document.getElementById('feed');
       const iframe = document.createElement('iframe');
-      iframe.src = '/vibraphonicsPWA/dropzone/test-applet.html';
+      iframe.src = '/dropzone/test-applet.html';  // FIXED PATH
       iframe.loading = 'lazy';
+      iframe.allow = 'autoplay';
       feed.appendChild(iframe);
     });
   </script>
