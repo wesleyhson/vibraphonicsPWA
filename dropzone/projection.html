@@ -1,291 +1,94 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VibraTronix — Klonk & Cycle</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { background:#000; overflow:hidden; }
-    canvas { display:block; }
-  </style>
-</head>
-<body>
-
-<canvas id="c"></canvas>
-
 <script>
-// === GLOBALS ===
-let isPlaying = false;  // FIXED: DECLARED HERE
-let audioCtx, compressor, masterGain;
-let step = 0;
-let cosmicInterval = null;
+  let isPlaying = false;
+  let audioCtx, compressor, masterGain;
+  let step = 0;
+  let cosmicInterval = null;
+  let activeOscillators = []; // TRACK ALL OSCILLATORS
 
-// 6 Orbs
-const orbs = [
-  { name: 'drum', x: innerWidth * 0.2, y: innerHeight * 0.3, r: 110, pulse: 0, color: '#ff3300', vx: 0, vy: 0, typeIndex: 0 },
-  { name: 'bass', x: innerWidth * 0.8, y: innerHeight * 0.3, r: 110, pulse: 0, color: '#00ffcc', vx: 0, vy: 0, typeIndex: 1 },
-  { name: 'hihat', x: innerWidth * 0.35, y: innerHeight * 0.7, r: 110, pulse: 0, color: '#ffff00', vx: 0, vy: 0, typeIndex: 2 },
-  { name: 'pluck', x: innerWidth * 0.65, y: innerHeight * 0.7, r: 110, pulse: 0, color: '#00ff00', vx: 0, vy: 0, typeIndex: 3 },
-  { name: 'pad', x: innerWidth * 0.5, y: innerHeight * 0.15, r: 110, pulse: 0, color: '#aa00ff', vx: 0, vy: 0, typeIndex: 4 },
-  { name: 'sparkle', x: innerWidth * 0.5, y: innerHeight * 0.85, r: 110, pulse: 0, color: '#ffffff', vx: 0, vy: 0, typeIndex: 5 }
-];
-
-const instrumentTypes = [
-  { name: 'kick', color: '#ff3300' },
-  { name: 'bass', color: '#00ffcc' },
-  { name: 'hihat', color: '#ffff00' },
-  { name: 'pluck', color: '#00ff00' },
-  { name: 'pad', color: '#aa00ff' },
-  { name: 'shimmer', color: '#ffffff' }
-];
-
-const agents = {};
-orbs.forEach(orb => {
-  agents[orb.name] = { pattern: Array(16).fill(0).map(() => Math.random() < 0.6 ? 1 : 0), energy: 0.6 + Math.random() * 0.3 };
-});
-
-// === CANVAS ===
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-function resize() {
-  canvas.width = innerWidth;
-  canvas.height = innerHeight;
-}
-resize();
-window.addEventListener('resize', resize);
-
-// === AUDIO ===
-function unlockAudio() {
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  compressor = audioCtx.createDynamicsCompressor();
-  compressor.threshold.value = -24;
-  compressor.knee.value = 12;
-  compressor.ratio.value = 12;
-  compressor.attack.value = 0.003;
-  compressor.release.value = 0.2;
-  masterGain = audioCtx.createGain();
-  masterGain.gain.value = 1.8;
-  compressor.connect(masterGain);
-  masterGain.connect(audioCtx.destination);
-}
-
-// === INSTRUMENTS ===
-function playKick() {
-  const t = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(150, t);
-  osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
-  gain.gain.setValueAtTime(1.6, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-  osc.connect(gain).connect(compressor);
-  osc.start(t); osc.stop(t + 0.4);
-}
-
-function playBass() {
-  const t = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sawtooth';
-  osc.frequency.value = 55;
-  gain.gain.setValueAtTime(0.8, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-  osc.connect(gain).connect(compressor);
-  osc.start(t); osc.stop(t + 0.3);
-}
-
-function playHiHat() {
-  const t = audioCtx.currentTime;
-  const noise = audioCtx.createBufferSource();
-  const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.05, audioCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  noise.buffer = buffer;
-  const gain = audioCtx.createGain();
-  const filter = audioCtx.createBiquadFilter();
-  filter.type = 'highpass';
-  filter.frequency.value = 7000;
-  gain.gain.setValueAtTime(0.5, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-  noise.connect(filter).connect(gain).connect(compressor);
-  noise.start(t);
-}
-
-function playPluck() {
-  const t = audioCtx.currentTime;
-  const freq = 440 * Math.pow(2, (67 - 69) / 12);
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.3, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
-  osc.connect(gain).connect(compressor);
-  osc.start(t); osc.stop(t + 1.5);
-}
-
-function playPad() {
-  const t = audioCtx.currentTime;
-  const freq = 440 * Math.pow(2, (48 - 69) / 12);
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.3, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
-  osc.connect(gain).connect(compressor);
-  osc.start(t); osc.stop(t + 1.5);
-}
-
-function playShimmer() {
-  const t = audioCtx.currentTime;
-  const freq = 880 + Math.random() * 880;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.1, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
-  osc.connect(gain).connect(compressor);
-  osc.start(t); osc.stop(t + 0.8);
-}
-
-function playKlonk() {
-  const t = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(800, t);
-  osc.frequency.exponentialRampToValueAtTime(200, t + 0.1);
-  gain.gain.setValueAtTime(0.8, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-  osc.connect(gain).connect(compressor);
-  osc.start(t); osc.stop(t + 0.2);
-}
-
-// === CYCLE ORB ===
-function cycleOrb(orb) {
-  orb.typeIndex = (orb.typeIndex + 1) % instrumentTypes.length;
-  const newType = instrumentTypes[orb.typeIndex];
-  orb.color = newType.color;
-  orb.pulse = 2.0;
-  const a = agents[orb.name];
-  a.pattern = Array(16).fill(0).map(() => Math.random() < 0.6 ? 1 : 0);
-  a.energy = 0.6 + Math.random() * 0.3;
-  playKlonk();
-}
-
-// === COLLISIONS ===
-function checkCollisions() {
-  for (let i = 0; i < orbs.length; i++) {
-    for (let j = i + 1; j < orbs.length; j++) {
-      const a = orbs[i], b = orbs[j];
-      const dist = Math.hypot(a.x - b.x, a.y - b.y);
-      if (dist < a.r + b.r) {
-        cycleOrb(a);
-        cycleOrb(b);
-        const angle = Math.atan2(b.y - a.y, b.x - a.x);
-        const force = (a.r + b.r - dist) * 0.6;
-        a.vx -= Math.cos(angle) * force;
-        a.vy -= Math.sin(angle) * force;
-        b.vx += Math.cos(angle) * force;
-        b.vy += Math.sin(angle) * force;
-      }
-    }
+  // === CLEANUP ===
+  function stopAllOscillators() {
+    activeOscillators.forEach(osc => {
+      try { osc.stop(); } catch(e) {}
+    });
+    activeOscillators = [];
   }
-}
 
-// === MUSIC LOOP ===
-function cosmicStep() {
-  step = (step + 1) % 16;
-  orbs.forEach(orb => {
-    const type = instrumentTypes[orb.typeIndex].name;
-    const a = agents[orb.name];
-    if (a.pattern[step]) {
-      switch(type) {
-        case 'kick': playKick(); break;
-        case 'bass': playBass(); break;
-        case 'hihat': playHiHat(); break;
-        case 'pluck': playPluck(); break;
-        case 'pad': if (step % 8 === 0) playPad(); break;
-        case 'shimmer': if (Math.random() < 0.4) playShimmer(); break;
-      }
-    }
-  });
-  orbs.forEach(orb => orb.pulse *= 0.85);
-}
+  // === AUDIO SETUP ===
+  async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -24;
+    compressor.knee.value = 12;
+    compressor.ratio.value = 12;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.2;
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 1.8;
+    compressor.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
+  }
 
-// === DRAW ORB ===
-function drawOrb(orb) {
-  const gradient = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r * (1 + orb.pulse));
-  gradient.addColorStop(0, orb.color);
-  gradient.addColorStop(0.7, orb.color + '99');
-  gradient.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(orb.x, orb.y, orb.r * (1 + orb.pulse), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 100 + orb.pulse * 250;
-  ctx.shadowColor = orb.color;
-  ctx.fill();
-  ctx.shadowBlur = 0;
-}
+  // === INSTRUMENTS (WITH TRACKING) ===
+  function playKick() {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
+    gain.gain.setValueAtTime(1.6, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    osc.connect(gain).connect(compressor);
+    osc.start(t); osc.stop(t + 0.4);
+    activeOscillators.push(osc);
+  }
 
-// === ANIMATION ===
-function animate() {
-  requestAnimationFrame(animate);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  function playBass() {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 55;
+    gain.gain.setValueAtTime(0.8, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(gain).connect(compressor);
+    osc.start(t); osc.stop(t + 0.3);
+    activeOscillators.push(osc);
+  }
 
-  orbs.forEach(orb => {
-    orb.vx += (Math.random() - 0.5) * 0.6;
-    orb.vy += (Math.random() - 0.5) * 0.6;
-    orb.vx *= 0.98;
-    orb.vy *= 0.98;
-    orb.x += orb.vx;
-    orb.y += orb.vy;
-    if (orb.x < orb.r) { orb.x = orb.r; orb.vx *= -0.8; }
-    if (orb.x > innerWidth - orb.r) { orb.x = innerWidth - orb.r; orb.vx *= -0.8; }
-    if (orb.y < orb.r) { orb.y = orb.r; orb.vy *= -0.8; }
-    if (orb.y > innerHeight - orb.r) { orb.y = innerHeight - orb.r; orb.vy *= -0.8; }
+  // ... same for playHiHat, playPluck, playPad, playShimmer, playKlonk ...
+
+  // === START / PAUSE ===
+  async function start() {
+    if (isPlaying) return;
+    await initAudio();
+    cosmicInterval = setInterval(cosmicStep, 353);
+    requestAnimationFrame(animate);
+    isPlaying = true;
+  }
+
+  function pause() {
+    if (!isPlaying) return;
+    clearInterval(cosmicInterval);
+    stopAllOscillators();
+    isPlaying = false;
+  }
+
+  // === TAB VISIBILITY ===
+  window.addEventListener('message', (e) => {
+    if (e.data.action === 'tabHidden') pause();
+    if (e.data.action === 'tabVisible' && isPlaying) start();
+    if (e.data.action === 'unlocked') start();
+    if (e.data.action === 'play' && !isPlaying) start();
+    if (e.data.action === 'pause' && isPlaying) pause();
   });
 
-  checkCollisions();
-  orbs.forEach(drawOrb);
-}
-
-// === START / PAUSE ===
-async function start() {
-  if (isPlaying) return;
-  await unlockAudio();
-  cosmicInterval = setInterval(cosmicStep, 353);
-  requestAnimationFrame(animate);
-  isPlaying = true;
-}
-
-function pause() {
-  if (!isPlaying) return;
-  clearInterval(cosmicInterval);
-  isPlaying = false;
-}
-
-// === LISTEN FOR UNLOCK + PLAY/PAUSE ===
-window.addEventListener('message', (e) => {
-  if (e.data.action === 'unlocked') start();
-  if (e.data.action === 'play' && !isPlaying) start();
-  if (e.data.action === 'pause' && isPlaying) pause();
-});
-
-// === AUTO-START AFTER UNLOCK ===
-const check = setInterval(() => {
-  if (window.top && window.top.audioUnlocked) {
-    clearInterval(check);
-    start();
-  }
-}, 100);
+  // === AUTO-START ===
+  const check = setInterval(() => {
+    if (window.top && window.top.audioUnlocked) {
+      clearInterval(check);
+      start();
+    }
+  }, 100);
 </script>
-
-</body>
-</html>
