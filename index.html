@@ -67,111 +67,109 @@
   <div id="feed"></div>
 
   <script>
-    const landing = document.getElementById('landing');
-    const beginBtn = document.getElementById('begin-btn');
-    const feed = document.getElementById('feed');
-    let audioUnlocked = false;
-    let observer;
+  const landing = document.getElementById('landing');
+  const beginBtn = document.getElementById('begin-btn');
+  const feed = document.getElementById('feed');
+  let audioUnlocked = false;
+  let observer;
 
-beginBtn.addEventListener('click', async () => {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
+  beginBtn.addEventListener('click', async () => {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
 
-  const dummy = new AudioContext();
-  await dummy.resume();  // UNLOCK AUDIO
+    // --- MOBILE AUDIO UNLOCK ---
+    try {
+      await Tone.start();  // This is the REAL unlock
+      console.log('Tone.js globally unlocked');
+    } catch (e) {
+      console.warn('Tone.start() failed', e);
+    }
 
-  // TELL ALL IFRAMES: "AUDIO IS UNLOCKED"
-  setTimeout(() => {
-    document.querySelectorAll('iframe').forEach(iframe => {
-      iframe.contentWindow.postMessage({ action: 'unlocked' }, '*');
+    landing.style.opacity = '0';
+    setTimeout(() => {
+      landing.remove();
+      feed.style.opacity = '1';
+      loadApplets();
+    }, 500);
+  });
+
+  async function loadApplets() {
+    let order = [];
+    try {
+      const orderRes = await fetch('/vibraphonicsPWA/order.json');
+      if (orderRes.ok) order = await orderRes.json();
+      console.log('order.json loaded:', order);
+    } catch (e) {
+      console.warn('No order.json — fallback to creation date');
+    }
+
+    const filesRes = await fetch('https://api.github.com/repos/wesleyhson/vibraphonicsPWA/contents/dropzone');
+    const files = await filesRes.json();
+    const htmlFiles = files
+      .filter(f => f.name.endsWith('.html'))
+      .map(f => ({ name: f.name, created: f.created_at }));
+
+    // --- RESPECT order.json (strings) ---
+    const ordered = order.filter(filename => 
+      htmlFiles.some(f => f.name === filename)
+    );
+    const remaining = htmlFiles
+      .filter(f => !order.includes(f.name))
+      .sort((a, b) => new Date(a.created) - new Date(b.created))
+      .map(f => f.name);
+
+    const finalOrder = [...ordered, ...remaining];
+    console.log('Final play order:', finalOrder);
+
+    if (finalOrder.length === 0) {
+      feed.innerHTML = '<div style="color:var(--text);text-align:center;padding:20vh;">No applets yet!</div>';
+      return;
+    }
+
+    finalOrder.forEach(file => {
+      const iframe = document.createElement('iframe');
+      iframe.src = `/vibraphonicsPWA/dropzone/${file}?v=${Date.now()}`;
+      iframe.loading = 'lazy';
+      iframe.allow = 'autoplay; fullscreen';
+      feed.appendChild(iframe);
     });
-  }, 100);
 
-  landing.style.opacity = '0';
-  setTimeout(() => {
-    landing.remove();
-    feed.style.opacity = '1';
-    loadApplets();
-  }, 500);
-});
+    setTimeout(initObserver, 1000);
+  }
 
-    async function loadApplets() {
-      // === 1. GET CUSTOM ORDER FROM order.json ===
-      let order = [];
-      try {
-        const orderRes = await fetch('/vibraphonicsPWA/order.json');
-        if (orderRes.ok) order = await orderRes.json();
-      } catch (e) {
-        console.warn('No order.json — using creation date');
-      }
+  function initObserver() {
+    const iframes = feed.querySelectorAll('iframe');
+    let currentActive = null;
 
-      // === 2. GET ALL FILES FROM dropzone/ ===
-      const filesRes = await fetch('https://api.github.com/repos/wesleyhson/vibraphonicsPWA/contents/dropzone');
-      const files = await filesRes.json();
-      const htmlFiles = files
-        .filter(f => f.name.endsWith('.html'))
-        .map(f => ({ name: f.name, created: f.created_at }));
+    observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const iframe = entry.target;
+        const win = iframe.contentWindow;
 
-      // === 3. SORT: CUSTOM ORDER → CREATION DATE ===
-      const ordered = order.filter(f => htmlFiles.some(h => h.name === f));
-      const remaining = htmlFiles
-        .filter(f => !order.includes(f.name))
-        .sort((a, b) => new Date(a.created) - new Date(b.created))
-        .map(f => f.name);
-
-      const finalOrder = [...ordered, ...remaining];
-
-      if (finalOrder.length === 0) {
-        feed.innerHTML = '<div style="color:var(--text);text-align:center;padding:20vh;">No applets yet!</div>';
-        return;
-      }
-
-      // === 4. RENDER IFRAMES ===
-      finalOrder.forEach(file => {
-        const iframe = document.createElement('iframe');
-        iframe.src = '/vibraphonicsPWA/dropzone/' + file + '?v=' + Date.now();
-        iframe.loading = 'lazy';
-        iframe.allow = 'autoplay; fullscreen';
-        feed.appendChild(iframe);
-      });
-
-      setTimeout(initObserver, 1000);
-    }
-
-    function initObserver() {
-      const iframes = feed.querySelectorAll('iframe');
-      let currentActive = null;
-
-      observer = new IntersectionObserver(entries => {
-        entries.forEach(entry => {
-          const iframe = entry.target;
-          const win = iframe.contentWindow;
-
-          if (entry.isIntersecting && audioUnlocked) {
-            if (currentActive !== iframe) {
-              if (currentActive) {
-                currentActive.classList.remove('active');
-                currentActive.contentWindow.postMessage({ action: 'pause' }, '*');
-              }
-              iframe.classList.add('active');
-              win.postMessage({ action: 'play' }, '*');
-              currentActive = iframe;
+        if (entry.isIntersecting && audioUnlocked) {
+          if (currentActive !== iframe) {
+            if (currentActive) {
+              currentActive.classList.remove('active');
+              currentActive.contentWindow.postMessage({ action: 'pause' }, '*');
             }
-          } else if (currentActive === iframe) {
-            iframe.classList.remove('active');
-            win.postMessage({ action: 'pause' }, '*');
-            currentActive = null;
+            iframe.classList.add('active');
+            win.postMessage({ action: 'play' }, '*');
+            currentActive = iframe;
           }
-        });
-      }, { root: feed, threshold: 0.7 });
+        } else if (currentActive === iframe) {
+          iframe.classList.remove('active');
+          win.postMessage({ action: 'pause' }, '*');
+          currentActive = null;
+        }
+      });
+    }, { root: feed, threshold: 0.7 });
 
-      iframes.forEach(ifr => observer.observe(ifr));
-    }
+    iframes.forEach(ifr => observer.observe(ifr));
+  }
 
-    // PWA Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/vibraphonicsPWA/sw.js');
-    }
-  </script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/vibraphonicsPWA/sw.js');
+  }
+</script>
 </body>
 </html>

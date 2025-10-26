@@ -5,8 +5,9 @@ const urlsToCache = [
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
+  '/dropzone/bubblenova.html',
+  '/dropzone/neonbar.html',
   '/dropzone/test-applet.html'
-  // Add more applets here as you grow!
 ];
 
 self.addEventListener('install', event => {
