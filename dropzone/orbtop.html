@@ -7,7 +7,7 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body, html { background:#000; overflow:hidden; width:100%; height:100%; }
-    canvas { display:block; width:100%; height:100%; }
+    canvas { display:block; width:100%; height:100%; image-rendering:pixelated; }
   </style>
 </head>
 <body>
@@ -15,7 +15,7 @@
 
   <script>
     const canvas = document.getElementById('c');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false }); // Faster
     let audioCtx, masterGain, reverb;
     let stars = [], nebula = [];
     let visualOrbs = [], musicOrbs = [];
@@ -23,11 +23,14 @@
     let animationId = null;
     let musicInterval = null;
     let isPlaying = false;
+    let lastTime = 0;
 
     // === RESIZE ===
     function resize() {
-      canvas.width = innerWidth;
-      canvas.height = innerHeight;
+      canvas.width = innerWidth * 0.8;  // Lower res = faster
+      canvas.height = innerHeight * 0.8;
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
     }
     window.addEventListener('resize', resize);
     resize();
@@ -45,29 +48,29 @@
     }
 
     function createCosmicReverb() {
-      const length = audioCtx.sampleRate * 2.5;
+      const length = audioCtx.sampleRate * 1.8; // Shorter = faster
       const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
       const left = impulse.getChannelData(0);
       const right = impulse.getChannelData(1);
       for (let i = 0; i < length; i++) {
-        const decay = Math.exp(-i / (audioCtx.sampleRate * 0.7));
-        left[i] = (Math.random() * 2 - 1) * decay * 0.25;
-        right[i] = (Math.random() * 2 - 1) * decay * 0.25;
+        const decay = Math.exp(-i / (audioCtx.sampleRate * 0.6));
+        left[i] = (Math.random() * 2 - 1) * decay * 0.2;
+        right[i] = (Math.random() * 2 - 1) * decay * 0.2;
       }
       return impulse;
     }
 
-    // === SPAWN ORBS ===
+    // === SPAWN ORBS (REDUCED) ===
     function spawnVisualOrbs(count) {
       visualOrbs = [];
       for (let i = 0; i < count; i++) {
         visualOrbs.push({
-          x: Math.random() * innerWidth,
-          y: Math.random() * innerHeight,
-          r: 3 + Math.random() * 5,
-          vx: (Math.random() - 0.5) * 2,
-          vy: (Math.random() - 0.5) * 2,
-          color: ['#ff6b6b','#f9ca24','#1dd1a1','#48dbfb','#ff9ff3'][Math.floor(Math.random()*5)],
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: 2 + Math.random() * 3,  // Smaller
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: (Math.random() - 0.5) * 1.5,
+          color: ['#ff6b6b','#f9ca24','#1dd1a1','#48dbfb','#ff9ff3'][i%5],
           pulse: 0
         });
       }
@@ -85,43 +88,36 @@
       ];
       instruments.forEach((inst, i) => {
         musicOrbs.push({
-          x: innerWidth * (0.2 + i * 0.12),
-          y: innerHeight * 0.5,
-          r: 80,
+          x: canvas.width * (0.2 + i * 0.12),
+          y: canvas.height * 0.5,
+          r: 60,  // Smaller
           pulse: 0,
           color: inst.color,
-          note: inst.note,
-          vx: 0, vy: 0
+          note: inst.note
         });
       });
     }
 
-    // === PLAY NOTE ===
+    // === PLAY NOTE (SIMPLIFIED) ===
     function playOrbNote(orb) {
       const t = audioCtx.currentTime;
       const freq = 440 * Math.pow(2, (orb.note - 69) / 12);
-      const carrier = audioCtx.createOscillator();
-      const mod = audioCtx.createOscillator();
-      const modGain = audioCtx.createGain();
-      const outGain = audioCtx.createGain();
-      carrier.type = 'sine';
-      carrier.frequency.value = freq;
-      mod.type = 'sine';
-      mod.frequency.value = freq * 3.5;
-      modGain.gain.value = freq * 0.18;
-      outGain.gain.setValueAtTime(0, t);
-      outGain.gain.linearRampToValueAtTime(0.36, t + 0.02);
-      outGain.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
-      mod.connect(modGain).connect(carrier.frequency);
-      carrier.connect(outGain).connect(masterGain);
-      carrier.start(t); mod.start(t); carrier.stop(t + 2.5); mod.stop(t + 2.5);
-      orb.pulse = 1.8;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.3, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 2);
+      osc.connect(gain).connect(masterGain);
+      osc.start(t); osc.stop(t + 2);
+      orb.pulse = 1.5;
     }
 
-    // === MUSIC LOOP ===
+    // === MUSIC LOOP (LESS FREQUENT) ===
     function musicStep() {
       step = (step + 1) % 16;
-      const pattern = [1,0,0,1,0,0,1,0,1,0,0,1,0,0,1,0];
+      const pattern = [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0]; // Slower
       if (pattern[step]) {
         const orb = musicOrbs[Math.floor(Math.random() * musicOrbs.length)];
         playOrbNote(orb);
@@ -129,24 +125,24 @@
       musicOrbs.forEach(o => o.pulse *= 0.9);
     }
 
-    // === VISUALS ===
+    // === SPACE (FEWER STARS/NEBULA) ===
     function initSpace() {
       stars = [];
-      for (let i = 0; i < 300; i++) {
+      for (let i = 0; i < 100; i++) {  // Was 300
         stars.push({
-          x: Math.random() * innerWidth,
-          y: Math.random() * innerHeight,
-          r: Math.random() * 1.5,
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: Math.random() * 1,
           twinkle: Math.random() * Math.PI * 2
         });
       }
       nebula = [];
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 4; i++) {  // Was 8
         nebula.push({
-          x: Math.random() * innerWidth,
-          y: Math.random() * innerHeight,
-          r: 200 + Math.random() * 300,
-          color: ['#4a148c','#6a1b9a','#7b1fa2','#8e24aa'][Math.floor(Math.random()*4)]
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: 150 + Math.random() * 200,
+          color: ['#4a148c','#6a1b9a','#7b1fa2','#8e24aa'][i]
         });
       }
     }
@@ -154,77 +150,71 @@
     function drawSpace() {
       nebula.forEach(n => {
         const gradient = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
-        gradient.addColorStop(0, n.color + '22');
+        gradient.addColorStop(0, n.color + '18');
         gradient.addColorStop(1, n.color + '00');
         ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(0, 0, canvas.width, canvas.height); // Batch
       });
       stars.forEach(s => {
         const twinkle = Math.sin(Date.now() * 0.001 + s.twinkle) * 0.5 + 0.5;
-        ctx.fillStyle = `rgba(255, 255, 255, ${twinkle})`;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${twinkle*0.8})`;
+        ctx.fillRect(s.x, s.y, s.r, s.r);
       });
     }
 
-    function drawOrb(orb) {
-      const gradient = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r * (1 + orb.pulse));
-      gradient.addColorStop(0, orb.color);
-      gradient.addColorStop(0.7, orb.color + '99');
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(orb.x, orb.y, orb.r * (1 + orb.pulse), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 80 + orb.pulse * 180;
-      ctx.shadowColor = orb.color;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-
+    // === COLLISIONS (SKIP EVERY OTHER FRAME) ===
+    let collisionFrame = 0;
     function checkVisualCollisions() {
+      if (collisionFrame++ % 2 !== 0) return; // 30 FPS
       for (let i = 0; i < visualOrbs.length; i++) {
         for (let j = i + 1; j < visualOrbs.length; j++) {
           const a = visualOrbs[i], b = visualOrbs[j];
           const dist = Math.hypot(a.x - b.x, a.y - b.y);
           if (dist < a.r + b.r) {
-            a.r += 0.6; b.r += 0.6;
-            a.pulse = 1.4; b.pulse = 1.4;
-            if (a.r > 55 || b.r > 55) {
+            a.r += 0.4; b.r += 0.4;
+            if (a.r > 40 || b.r > 40) {
               const winner = a.r > b.r ? a : b;
               const loser = a.r > b.r ? b : a;
-              winner.r += loser.r * 0.7;
+              winner.r += loser.r * 0.6;
               visualOrbs.splice(visualOrbs.indexOf(loser), 1);
             }
-            const angle = Math.atan2(b.y - a.y, b.x - a.x);
-            const force = 1.6;
-            a.vx -= Math.cos(angle) * force;
-            a.vy -= Math.sin(angle) * force;
-            b.vx += Math.cos(angle) * force;
-            b.vy += Math.sin(angle) * force;
           }
         }
       }
     }
 
-    function animate() {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+    // === DRAW ORB (SIMPLIFIED) ===
+    function drawOrb(orb) {
+      ctx.fillStyle = orb.color;
+      ctx.shadowBlur = 60 + orb.pulse * 120;
+      ctx.shadowColor = orb.color;
+      ctx.beginPath();
+      ctx.arc(orb.x, orb.y, orb.r * (1 + orb.pulse), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // === ANIMATION LOOP (60 FPS, OPTIMIZED) ===
+    function animate(time) {
+      if (!lastTime) lastTime = time;
+      const delta = time - lastTime;
+      if (delta < 16) { animationId = requestAnimationFrame(animate); return; } // Cap 60 FPS
+      lastTime = time;
+
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       drawSpace();
 
       visualOrbs.forEach(orb => {
-        orb.vx += (Math.random() - 0.5) * 0.3;
-        orb.vy += (Math.random() - 0.5) * 0.3;
-        orb.vx *= 0.99; orb.vy *= 0.99;
+        orb.vx += (Math.random() - 0.5) * 0.2;
+        orb.vy += (Math.random() - 0.5) * 0.2;
+        orb.vx *= 0.98; orb.vy *= 0.98;
         orb.x += orb.vx; orb.y += orb.vy;
-        orb.pulse *= 0.9;
-        if (orb.x < orb.r) { orb.x = orb.r; orb.vx *= -0.7; }
-        if (orb.x > innerWidth - orb.r) { orb.x = innerWidth - orb.r; orb.vx *= -0.7; }
-        if (orb.y < orb.r) { orb.y = orb.r; orb.vy *= -0.7; }
-        if (orb.y > innerHeight - orb.r) { orb.y = innerHeight - orb.r; orb.vy *= -0.7; }
+        orb.pulse *= 0.92;
+        if (orb.x < orb.r) { orb.x = orb.r; orb.vx *= -0.6; }
+        if (orb.x > canvas.width - orb.r) { orb.x = canvas.width - orb.r; orb.vx *= -0.6; }
+        if (orb.y < orb.r) { orb.y = orb.r; orb.vy *= -0.6; }
+        if (orb.y > canvas.height - orb.r) { orb.y = canvas.height - orb.r; orb.vy *= -0.6; }
       });
 
       checkVisualCollisions();
@@ -239,9 +229,10 @@
       if (isPlaying) return;
       await initAudio();
       initSpace();
-      spawnVisualOrbs(500);
+      spawnVisualOrbs(150);  // Was 500
       spawnMusicOrbs();
-      musicInterval = setInterval(musicStep, 400);
+      musicInterval = setInterval(musicStep, 500); // Slower
+      lastTime = 0;
       animate();
       isPlaying = true;
     }
