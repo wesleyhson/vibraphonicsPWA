@@ -29,34 +29,41 @@
   <div id="feed"></div>
 
   <script>
-  // PWA: Register service worker
+  // Register PWA
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js');
   }
 
-  // Load applets on DOM ready
   document.addEventListener('DOMContentLoaded', () => {
     const feed = document.getElementById('feed');
 
-    // Your applets list (add more filenames here!)
-    const applets = [
-      'test-applet.html'
-      // 'next-vibe.html',
-    ];
+    // AUTO-READ dropzone/ via GitHub API
+    fetch('https://api.github.com/repos/wesleyhson/vibraphonicsPWA/contents/dropzone')
+      .then(r => r.json())
+      .then(files => {
+        const htmlFiles = files
+          .filter(f => f.name.endsWith('.html'))
+          .map(f => f.name)
+          .sort();
 
-    if (applets.length === 0) {
-      feed.innerHTML = '<div style="color:#0f0; text-align:center; padding:2rem; font-family:monospace;">No applets yet! Drop some in dropzone/.</div>';
-      return;
-    }
+        if (htmlFiles.length === 0) {
+          feed.innerHTML = '<div style="color:#0f0; text-align:center; padding:20vh; font-family:monospace;">Drop applets in dropzone/ on GitHub!</div>';
+          return;
+        }
 
-    applets.forEach(file => {
-      const iframe = document.createElement('iframe');
-      iframe.src = './dropzone/' + file + '?v=' + Date.now();  // Relative path + cache-bust
-      iframe.style = 'width:100%; height:100vh; border:none; display:block; scroll-snap-align:start;';
-      iframe.loading = 'lazy';
-      iframe.allow = 'autoplay; fullscreen';
-      feed.appendChild(iframe);
-    });
+        htmlFiles.forEach(file => {
+          const iframe = document.createElement('iframe');
+          iframe.src = '/dropzone/' + file + '?v=' + Date.now();
+          iframe.style = 'width:100%; height:100vh; border:none; display:block; scroll-snap-align:start;';
+          iframe.loading = 'lazy';
+          iframe.allow = 'autoplay; fullscreen';
+          feed.appendChild(iframe);
+        });
+      })
+      .catch(err => {
+        feed.innerHTML = '<div style="color:#f00; text-align:center; padding:20vh;">Error loading vibes. Check console.</div>';
+        console.error(err);
+      });
   });
 </script>
 </body>
