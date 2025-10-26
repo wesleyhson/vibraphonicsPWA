@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibraTronix — PINK VAGINA KISS (SWEET & PURE)</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+  // === GLOBALS ===
+  let isPlaying = false;
+  let audioCtx, masterGain;
+  let animationId = null;
+  let activeOscillators = [];
+  let face = { x: innerWidth / 2, y: innerHeight / 2, r: 180, blush: 0, eyesOpen: true, mouthOpen: 0 };
+  let accentCircles = [];
+
+  // === CANVAS ===
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  function resize() { 
+    canvas.width = innerWidth; 
+    canvas.height = innerHeight; 
+    face.x = innerWidth / 2;
+    face.y = innerHeight / 2;
+  }
+  resize(); 
+  window.addEventListener('resize', resize);
+
+  // === AUDIO SETUP ===
+  async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.7;
+    masterGain.connect(audioCtx.destination);
+  }
+
+  function stopAllOscillators() {
+    activeOscillators.forEach(osc => {
+      try { osc.stop(); } catch(e) {}
+    });
+    activeOscillators = [];
+  }
+
+  // === SWEET MUSIC BOX PLINK (Cmaj7) ===
+  function playMusicBox() {
+    const t = audioCtx.currentTime;
+    const notes = [72, 76, 79, 83]; // Cmaj7
+    const note = notes[Math.floor(Math.random() * notes.length)];
+    const freq = 440 * Math.pow(2, (note - 69) / 12);
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.35, t + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
+
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 2.5);
+    activeOscillators.push(osc);
+  }
+
+  // === ACCENT PLINK (higher, twinkly) ===
+  function playAccentPlink() {
+    const t = audioCtx.currentTime;
+    const note = 84 + Math.floor(Math.random() * 12); // High sparkle
+    const freq = 440 * Math.pow(2, (note - 69) / 12);
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.2, t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 1.2);
+    activeOscillators.push(osc);
+  }
+
+  // === ACCENT CIRCLE SPAWN ===
+  function spawnAccentCircle() {
+    accentCircles.push({
+      x: face.x + (Math.random() - 0.5) * face.r * 1.5,
+      y: face.y + (Math.random() - 0.5) * face.r * 1.5,
+      r: 8 + Math.random() * 12,
+      vx: (Math.random() - 0.5) * 1.5,
+      vy: (Math.random() - 0.5) * 1.5,
+      life: 1,
+      color: ['#ffccff','#ccffff','#ffffcc','#ffccff'][Math.floor(Math.random()*4)]
+    });
+  }
+
+  // === ANIMATION ===
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Face
+    face.blush *= 0.98;
+    face.blush += 0.015;
+
+    const gradient = ctx.createRadialGradient(face.x, face.y, 0, face.x, face.y, face.r * (1 + face.blush * 0.3));
+    gradient.addColorStop(0, '#ff99cc');
+    gradient.addColorStop(1, 'rgba(255,153,204,0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(face.x, face.y, face.r * (1 + face.blush * 0.3), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes (looking up at you)
+    const eyeY = face.y - face.r * 0.3;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(face.x - face.r * 0.3, eyeY, face.r * 0.2, 0, Math.PI * 2);
+    ctx.arc(face.x + face.r * 0.3, eyeY, face.r * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pupils (gazing up)
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(face.x - face.r * 0.3, eyeY - face.r * 0.1, face.r * 0.08, 0, Math.PI * 2);
+    ctx.arc(face.x + face.r * 0.3, eyeY - face.r * 0.1, face.r * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mouth (soft smile)
+    face.mouthOpen = 0.4 + Math.sin(Date.now() * 0.002) * 0.1;
+    ctx.strokeStyle = '#ff6699';
+    ctx.lineWidth = face.r * 0.08;
+    ctx.beginPath();
+    ctx.arc(face.x, face.y + face.r * 0.3, face.r * 0.35 * face.mouthOpen, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+
+    // Accent circles
+    if (Math.random() < 0.2) spawnAccentCircle();
+    accentCircles = accentCircles.filter(c => {
+      c.x += c.vx;
+      c.y += c.vy;
+      c.vx *= 0.98; c.vy *= 0.98;
+      c.life *= 0.96;
+      c.r *= 0.98;
+
+      ctx.fillStyle = c.color + Math.floor(c.life * 255).toString(16).padStart(2, '0');
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      return c.life > 0.1;
+    });
+  }
+
+  // === MELODIC KISS LOOP ===
+  function kissLoop() {
+    playMusicBox();
+    if (Math.random() < 0.4) playAccentPlink();
+  }
+
+  // === START / PAUSE ===
+  async function start() {
+    if (isPlaying) return;
+    await initAudio();
+    setInterval(kissLoop, 1400);
+    animationId = requestAnimationFrame(animate);
+    isPlaying = true;
+  }
+
+  function pause() {
+    if (!isPlaying) return;
+    if (animationId) cancelAnimationFrame(animationId);
+    stopAllOscillators();
+    isPlaying = false;
+  }
+
+  // === LISTEN FOR CONTROL ===
+  window.addEventListener('message', (e) => {
+    if (e.data.action === 'unlocked') start();
+    if (e.data.action === 'play' && !isPlaying) start();
+    if (e.data.action === 'pause' && isPlaying) pause();
+    if (e.data.action === 'tabHidden') pause();
+    if (e.data.action === 'tabVisible' && isPlaying) start();
+  });
+
+  // === AUTO-START AFTER UNLOCK ===
+  const check = setInterval(() => {
+    if (window.top && window.top.audioUnlocked) {
+      clearInterval(check);
+      start();
+    }
+  }, 100);
+</script>
+
+</body>
+</html>
