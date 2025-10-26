@@ -23,7 +23,6 @@
   let nebulaPulse = 0;
   let pistons = [];
   let blessings = [];
-  let bars = [];
   let heights = new Array(8).fill(0);
   let targets = new Array(8).fill(0);
   let scaleOffset = 0;
@@ -99,7 +98,7 @@
   const colors = ['#ff004d','#ff6600','#ffcc00','#00ff66','#00ccff','#0066ff','#cc00ff','#ffffff'];
   const rootNotes = ['C3','D3','E3','G3','A3','C4','D4','E4'];
 
-  // === TONE.JS SETUP ===
+  // === TONE.JS (NO Tone.start() HERE) ===
   const synths = [];
   for (let i = 0; i < barCount; i++) {
     const s = new Tone.PolySynth(Tone.Synth, {
@@ -115,7 +114,6 @@
   }).toDestination();
   kick.volume.value = -10;
 
-  // === LOOPS ===
   kickLoop = new Tone.Loop(t => {
     kick.triggerAttackRelease("C1", "8n", t);
     kickPulse = 1;
@@ -184,9 +182,8 @@
   }
 
   // === START / PAUSE ===
-  async function start() {
+  function start() {
     if (isPlaying) return;
-    await Tone.start();  // RESTORED
     kickLoop.start(0);
     melodyLoop.start(0);
     initSpace();
