@@ -27,19 +27,12 @@
   let rain = [];
   let shapes = [];
   let centerCore = { x: innerWidth / 2, y: innerHeight / 2, r: 120, pulse: 0 };
-  let beams = [];
 
   // === RESIZE ===
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
-  function resize() { 
-    canvas.width = innerWidth; 
-    canvas.height = innerHeight; 
-    centerCore.x = innerWidth / 2;
-    centerCore.y = innerHeight / 2;
-  }
-  resize(); 
-  window.addEventListener('resize', resize);
+  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  resize(); window.addEventListener('resize', resize);
 
   // === INIT RAIN ===
   function initRain() {
@@ -85,10 +78,10 @@
     activeOscillators = [];
   }
 
-  // === PLINKS (SPAWN SHAPES + PULSE CORE) ===
+  // === PLINKS ===
   function playPlink() {
     const t = audioCtx.currentTime;
-    const note = shimmerArp[Math.floor(Math.random() * shimmerArp.length)];
+    const note = [72, 76, 79, 84, 79, 76, 72, 67][Math.floor(Math.random() * 8)];
     const freq = 440 * Math.pow(2, (note - 69) / 12);
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -100,27 +93,9 @@
     osc.connect(gain).connect(masterGain);
     osc.start(t); osc.stop(t + 0.8);
     activeOscillators.push(osc);
-
-    // PULSE CORE
-    centerCore.pulse = 1.8;
-
-    // SPAWN SHAPE FROM CENTER
-    shapes.push({
-      x: centerCore.x,
-      y: centerCore.y,
-      r: 30 + Math.random() * 40,
-      sides: 3 + Math.floor(Math.random() * 5),
-      rot: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() - 0.5) * 0.1,
-      color: ['#00ffff','#ff00ff','#39ff14','#ff00aa','#ffaa00'][Math.floor(Math.random()*5)],
-      pulse: 2,
-      vx: (Math.random() - 0.5) * 12,
-      vy: (Math.random() - 0.5) * 12,
-      fade: 1
-    });
   }
 
-  // === KICK (PULSE CORE) ===
+  // === KICK ===
   function playKick() {
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
@@ -133,8 +108,6 @@
     osc.connect(gain).connect(masterGain);
     osc.start(t); osc.stop(t + 0.35);
     activeOscillators.push(osc);
-
-    centerCore.pulse = 2.2;
   }
 
   // === LOG DRUM ===
@@ -180,17 +153,15 @@
     playShimmer(shimmerArp[shimmerIndex]);
   }
 
-  // === DRAW SHAPE ===
+  // === DRAW SHAPE (FIXED) ===
   function drawShape(shape) {
     shape.rot += shape.rotSpeed;
     shape.pulse *= 0.92;
     shape.r *= 0.995;
-    shape.fade *= 0.98;
 
     ctx.save();
     ctx.translate(shape.x, shape.y);
     ctx.rotate(shape.rot);
-    ctx.globalAlpha = shape.fade;
 
     const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, shape.r * (1 + shape.pulse));
     grad.addColorStop(0, shape.color);
@@ -243,32 +214,6 @@
     ctx.shadowBlur = 0;
   }
 
-  // === DRAW BEAMS (FROM CORE) ===
-  function drawBeams() {
-    beams = beams.filter(b => {
-      b.age++;
-      b.alpha *= 0.96;
-      b.r += 8;
-      ctx.strokeStyle = `rgba(255,255,255,${b.alpha})`;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(centerCore.x, centerCore.y, b.r, b.start, b.end);
-      ctx.stroke();
-      return b.alpha > 0.05;
-    });
-  }
-
-  // === SPAWN BEAM ON KICK ===
-  function spawnBeam() {
-    beams.push({
-      r: 120,
-      start: Math.random() * Math.PI * 2,
-      end: Math.random() * Math.PI * 2,
-      alpha: 1,
-      age: 0
-    });
-  }
-
   // === ANIMATION ===
   function animate() {
     animationId = requestAnimationFrame(animate);
@@ -277,7 +222,6 @@
     drawRain();
     drawCore();
     shapes.forEach(drawShape);
-    drawBeams();
   }
 
   // === START / PAUSE ===
