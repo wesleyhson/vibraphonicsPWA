@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vibratronix — Klonk & Cycle</title>
+  <title>VibraTronix — Klonk & Cycle</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
@@ -15,26 +15,13 @@
 <canvas id="c"></canvas>
 
 <script>
-// --------------------------------------------------
-// 1. Canvas
-// --------------------------------------------------
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-
-function resize() {
-  canvas.width = innerWidth;
-  canvas.height = innerHeight;
-}
-resize();
-window.addEventListener('resize', resize);
-
-// --------------------------------------------------
-// 2. Audio
-// --------------------------------------------------
+// === GLOBALS ===
+let isPlaying = false;  // FIXED: DECLARED HERE
 let audioCtx, compressor, masterGain;
 let step = 0;
+let cosmicInterval = null;
 
-// 6 Orbs (bigger)
+// 6 Orbs
 const orbs = [
   { name: 'drum', x: innerWidth * 0.2, y: innerHeight * 0.3, r: 110, pulse: 0, color: '#ff3300', vx: 0, vy: 0, typeIndex: 0 },
   { name: 'bass', x: innerWidth * 0.8, y: innerHeight * 0.3, r: 110, pulse: 0, color: '#00ffcc', vx: 0, vy: 0, typeIndex: 1 },
@@ -44,7 +31,6 @@ const orbs = [
   { name: 'sparkle', x: innerWidth * 0.5, y: innerHeight * 0.85, r: 110, pulse: 0, color: '#ffffff', vx: 0, vy: 0, typeIndex: 5 }
 ];
 
-// Instrument + Color Pool
 const instrumentTypes = [
   { name: 'kick', color: '#ff3300' },
   { name: 'bass', color: '#00ffcc' },
@@ -54,12 +40,22 @@ const instrumentTypes = [
   { name: 'shimmer', color: '#ffffff' }
 ];
 
-// Agents
 const agents = {};
 orbs.forEach(orb => {
   agents[orb.name] = { pattern: Array(16).fill(0).map(() => Math.random() < 0.6 ? 1 : 0), energy: 0.6 + Math.random() * 0.3 };
 });
 
+// === CANVAS ===
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+function resize() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// === AUDIO ===
 function unlockAudio() {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   compressor = audioCtx.createDynamicsCompressor();
@@ -68,17 +64,13 @@ function unlockAudio() {
   compressor.ratio.value = 12;
   compressor.attack.value = 0.003;
   compressor.release.value = 0.2;
-
   masterGain = audioCtx.createGain();
   masterGain.gain.value = 1.8;
-
   compressor.connect(masterGain);
   masterGain.connect(audioCtx.destination);
 }
 
-// --------------------------------------------------
-// 3. Instruments
-// --------------------------------------------------
+// === INSTRUMENTS ===
 function playKick() {
   const t = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
@@ -92,18 +84,16 @@ function playKick() {
   osc.start(t); osc.stop(t + 0.4);
 }
 
-function playSnare() {
+function playBass() {
   const t = audioCtx.currentTime;
-  const noise = audioCtx.createBufferSource();
-  const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.15, audioCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  noise.buffer = buffer;
+  const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-  gain.gain.setValueAtTime(1.1, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-  noise.connect(gain).connect(compressor);
-  noise.start(t);
+  osc.type = 'sawtooth';
+  osc.frequency.value = 55;
+  gain.gain.setValueAtTime(0.8, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  osc.connect(gain).connect(compressor);
+  osc.start(t); osc.stop(t + 0.3);
 }
 
 function playHiHat() {
@@ -123,22 +113,9 @@ function playHiHat() {
   noise.start(t);
 }
 
-function playBass(note) {
+function playPluck() {
   const t = audioCtx.currentTime;
-  const freq = 440 * Math.pow(2, (note - 69) / 12);
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sawtooth';
-  osc.frequency.value = freq / 2;
-  gain.gain.setValueAtTime(0.8, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-  osc.connect(gain).connect(compressor);
-  osc.start(t); osc.stop(t + 0.3);
-}
-
-function playPluck(note) {
-  const t = audioCtx.currentTime;
-  const freq = 440 * Math.pow(2, (note - 69) / 12);
+  const freq = 440 * Math.pow(2, (67 - 69) / 12);
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = 'sine';
@@ -149,9 +126,9 @@ function playPluck(note) {
   osc.start(t); osc.stop(t + 1.5);
 }
 
-function playPad(note) {
+function playPad() {
   const t = audioCtx.currentTime;
-  const freq = 440 * Math.pow(2, (note - 69) / 12);
+  const freq = 440 * Math.pow(2, (48 - 69) / 12);
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = 'sine';
@@ -160,6 +137,19 @@ function playPad(note) {
   gain.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
   osc.connect(gain).connect(compressor);
   osc.start(t); osc.stop(t + 1.5);
+}
+
+function playShimmer() {
+  const t = audioCtx.currentTime;
+  const freq = 880 + Math.random() * 880;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+  osc.connect(gain).connect(compressor);
+  osc.start(t); osc.stop(t + 0.8);
 }
 
 function playKlonk() {
@@ -175,34 +165,27 @@ function playKlonk() {
   osc.start(t); osc.stop(t + 0.2);
 }
 
-// --------------------------------------------------
-// 4. Touch = Cycle + Klonk
-// --------------------------------------------------
+// === CYCLE ORB ===
 function cycleOrb(orb) {
   orb.typeIndex = (orb.typeIndex + 1) % instrumentTypes.length;
   const newType = instrumentTypes[orb.typeIndex];
   orb.color = newType.color;
   orb.pulse = 2.0;
-
-  // Reset pattern
   const a = agents[orb.name];
   a.pattern = Array(16).fill(0).map(() => Math.random() < 0.6 ? 1 : 0);
   a.energy = 0.6 + Math.random() * 0.3;
-
   playKlonk();
 }
 
+// === COLLISIONS ===
 function checkCollisions() {
   for (let i = 0; i < orbs.length; i++) {
     for (let j = i + 1; j < orbs.length; j++) {
-      const a = orbs[i];
-      const b = orbs[j];
+      const a = orbs[i], b = orbs[j];
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
       if (dist < a.r + b.r) {
         cycleOrb(a);
         cycleOrb(b);
-
-        // Push apart
         const angle = Math.atan2(b.y - a.y, b.x - a.x);
         const force = (a.r + b.r - dist) * 0.6;
         a.vx -= Math.cos(angle) * force;
@@ -214,16 +197,12 @@ function checkCollisions() {
   }
 }
 
-// --------------------------------------------------
-// 5. 170 BPM Loop
-// --------------------------------------------------
+// === MUSIC LOOP ===
 function cosmicStep() {
   step = (step + 1) % 16;
-
   orbs.forEach(orb => {
     const type = instrumentTypes[orb.typeIndex].name;
     const a = agents[orb.name];
-
     if (a.pattern[step]) {
       switch(type) {
         case 'kick': playKick(); break;
@@ -235,13 +214,10 @@ function cosmicStep() {
       }
     }
   });
-
   orbs.forEach(orb => orb.pulse *= 0.85);
 }
 
-// --------------------------------------------------
-// 6. Draw Orbs
-// --------------------------------------------------
+// === DRAW ORB ===
 function drawOrb(orb) {
   const gradient = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r * (1 + orb.pulse));
   gradient.addColorStop(0, orb.color);
@@ -251,23 +227,18 @@ function drawOrb(orb) {
   ctx.beginPath();
   ctx.arc(orb.x, orb.y, orb.r * (1 + orb.pulse), 0, Math.PI * 2);
   ctx.fill();
-
   ctx.shadowBlur = 100 + orb.pulse * 250;
   ctx.shadowColor = orb.color;
   ctx.fill();
   ctx.shadowBlur = 0;
 }
 
-// --------------------------------------------------
-// 7. Animation
-// --------------------------------------------------
+// === ANIMATION ===
 function animate() {
   requestAnimationFrame(animate);
-
   ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Physics
   orbs.forEach(orb => {
     orb.vx += (Math.random() - 0.5) * 0.6;
     orb.vy += (Math.random() - 0.5) * 0.6;
@@ -275,8 +246,6 @@ function animate() {
     orb.vy *= 0.98;
     orb.x += orb.vx;
     orb.y += orb.vy;
-
-    // Bounce
     if (orb.x < orb.r) { orb.x = orb.r; orb.vx *= -0.8; }
     if (orb.x > innerWidth - orb.r) { orb.x = innerWidth - orb.r; orb.vx *= -0.8; }
     if (orb.y < orb.r) { orb.y = orb.r; orb.vy *= -0.8; }
@@ -287,14 +256,11 @@ function animate() {
   orbs.forEach(drawOrb);
 }
 
-// --------------------------------------------------
-// 8. AUTO-START
-// --------------------------------------------------
-let cosmicInterval = null;
+// === START / PAUSE ===
 async function start() {
   if (isPlaying) return;
   await unlockAudio();
-  cosmicInterval = setInterval(cosmicStep, 353); // 170 BPM
+  cosmicInterval = setInterval(cosmicStep, 353);
   requestAnimationFrame(animate);
   isPlaying = true;
 }
@@ -305,12 +271,14 @@ function pause() {
   isPlaying = false;
 }
 
+// === LISTEN FOR UNLOCK + PLAY/PAUSE ===
 window.addEventListener('message', (e) => {
   if (e.data.action === 'unlocked') start();
   if (e.data.action === 'play' && !isPlaying) start();
   if (e.data.action === 'pause' && isPlaying) pause();
 });
 
+// === AUTO-START AFTER UNLOCK ===
 const check = setInterval(() => {
   if (window.top && window.top.audioUnlocked) {
     clearInterval(check);
