@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Neon Bar Synth</title>
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.8.39/build/Tone.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body,html{width:100%;height:100%;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;}
+    canvas{display:block;}
+  </style>
+</head>
+<body>
+  <canvas id="bars"></canvas>
+
+  <script>
+    // === AUTO-START ===
+    window.addEventListener('load', async () => {
+      await Tone.start();
+      Tone.Transport.bpm.value = 120;
+      Tone.Transport.start();
+      initBars();
+      animate();
+    });
+
+    // === 8 NEON BARS + SYNTHS ===
+    const canvas = document.getElementById('bars');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const barCount = 8;
+    const barWidth = 40;
+    const barSpacing = 80;
+    const startX = (canvas.width - (barCount * barSpacing)) / 2 + 40;
+
+    const colors = [
+      '#ff004d', '#ff6600', '#ffcc00', '#00ff66',
+      '#00ccff', '#0066ff', '#cc00ff', '#ffffff'
+    ];
+
+    const synths = [];
+    const notes = ['C3', 'D3', 'E3', 'G3', 'A3', 'C4', 'D4', 'E4'];
+    const heights = new Array(barCount).fill(0);
+    const targets = new Array(barCount).fill(0);
+    let kickPulse = 0;
+
+    // Create 8 synths
+    for (let i = 0; i < barCount; i++) {
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 0.4 }
+      }).toDestination();
+      synth.volume.value = -15;
+      synths.push(synth);
+    }
+
+    // Kick for pulse
+    const kick = new Tone.MembraneSynth({
+      envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 }
+    }).toDestination();
+
+    new Tone.Loop(t => {
+      kick.triggerAttackRelease("C1", "8n", t);
+    }, "4n").start(0);
+
+    // Random melody across bars
+    new Tone.Loop(t => {
+      const i = Math.floor(Math.random() * barCount);
+      synths[i].triggerAttackRelease(notes[i], "8n", t);
+      targets[i] = 1;
+    }, "2n").start(0);
+
+    // === KICK PULSE ANALYSER ===
+    const analyser = new Tone.Analyser("waveform", 32);
+    kick.connect(analyser);
+
+    // === INITIALIZE BARS ===
+    function initBars() {
+      // No init needed
+    }
+
+    // === ANIMATION LOOP ===
+    function animate() {
+      ctx.fillStyle = 'rgba(0,0,0,0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const waveform = analyser.getValue();
+      kickPulse = Math.max(kickPulse * 0.9, Math.abs(waveform[0]));
+
+      // Update heights
+      for (let i = 0; i < barCount; i++) {
+        heights[i] += (targets[i] - heights[i]) * 0.2;
+        if (heights[i] < 0.01) heights[i] = 0;
+        targets[i] *= 0.95;
+      }
+
+      // Draw bars
+      for (let i = 0; i < barCount; i++) {
+        const x = startX + i * barSpacing;
+        const maxH = canvas.height * 0.7;
+        const h = maxH * heights[i] * (1 + kickPulse);
+
+        // Glow
+        const gradient = ctx.createLinearGradient(x, canvas.height - h, x, canvas.height);
+        gradient.addColorStop(0, colors[i]);
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+        ctx.fillStyle = gradient;
+        ctx.shadowBlur = 30 + kickPulse * 50;
+        ctx.shadowColor = colors[i];
+        ctx.fillRect(x - barWidth/2, canvas.height - h, barWidth, h);
+
+        // Core line
+        ctx.fillStyle = colors[i];
+        ctx.shadowBlur = 10;
+        ctx.fillRect(x - 2, canvas.height - h, 4, h);
+      }
+
+      ctx.shadowBlur = 0;
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>
