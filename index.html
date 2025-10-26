@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- CACHE BUST: 2025-10-25-v4 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Vibraphonics PWA</title>
@@ -10,9 +9,10 @@
     html, body { height:100%; overflow:hidden; background:#111; }
     #feed {
       height:100vh;
-      overflow-y: auto;
-      scroll-snap-type: y proximity;
-      -webkit-overflow-scrolling: touch;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      -webkit-overflow-scrolling: touch;  /* FIXED: was "abdomen" */
+      scroll-behavior: smooth;
     }
     iframe {
       width:100%;
@@ -36,26 +36,24 @@
   </div>
 
   <script>
-  // VERSION: 2025-10-25-FINAL
-  const feed = document.getElementById('feed');
-  const loading = feed.querySelector('.loading');
+    const feed = document.getElementById('feed');
+    const loading = feed.querySelector('.loading');
 
-  const htmlFiles = ['test-applet.html']; // Add more here!
+    const applets = ['test-applet.html'];
 
-  if (htmlFiles.length === 0) {
-    loading.textContent = "No applets in dropzone/ yet!";
-    return;
-  }
+    if (applets.length === 0) {
+      loading.textContent = "No applets yet!";
+      return;
+    }
 
-  loading.remove();
-  htmlFiles.forEach(file => {
-    const iframe = document.createElement('iframe');
-    iframe.src = '/dropzone/' + file + '?v=1'; // CORRECT PATH
-    iframe.loading = 'lazy';
-    iframe.allow = 'autoplay; fullscreen';
-    iframe.style = 'width:100%; height:100vh; border:none; display:block; scroll-snap-align:start;';
-    feed.appendChild(iframe);
-  });
-</script>
+    loading.remove();
+    applets.forEach(file => {
+      const iframe = document.createElement('iframe');
+      iframe.src = '/dropzone/' + file;
+      iframe.loading = 'lazy';
+      iframe.allow = 'autoplay';
+      feed.appendChild(iframe);
+    });
+  </script>
 </body>
 </html>
