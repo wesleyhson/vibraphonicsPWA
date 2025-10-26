@@ -36,11 +36,12 @@
   </div>
 
   <script>
+  // VERSION: 2025-10-25-v5
   const feed = document.getElementById('feed');
   const loading = feed.querySelector('.loading');
 
-  // Hardcoded for now — add more filenames here as you drop applets
-  const htmlFiles = ['test-applet.html']; // Edit this array to add new ones!
+  const htmlFiles = ['test-applet.html'];
+  const version = 'v5';
 
   if (htmlFiles.length === 0) {
     loading.textContent = "No applets in dropzone/ yet!";
@@ -50,7 +51,7 @@
   loading.remove();
   htmlFiles.forEach(file => {
     const iframe = document.createElement('iframe');
-    iframe.src = '/vibraphonicsPWA/dropzone/' + file;
+    iframe.src = `/vibraphonicsPWA/dropzone/${file}?v=${version}`;
     iframe.loading = 'lazy';
     feed.appendChild(iframe);
   });
