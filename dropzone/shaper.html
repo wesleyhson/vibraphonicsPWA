@@ -23,11 +23,10 @@
   const shimmerArp = [72, 76, 79, 84, 79, 76, 72, 67];
   let animationId = null;
   let musicInterval = null;
-  let activeOscillators = []; // FIXED
+  let activeOscillators = [];
   let rain = [];
   let shapes = [];
   let centerCore = { x: innerWidth / 2, y: innerHeight / 2, r: 120, pulse: 0 };
-  let beams = [];
 
   // === RESIZE ===
   const canvas = document.getElementById('c');
@@ -72,7 +71,7 @@
     masterGain.connect(audioCtx.destination);
   }
 
-  function stopAllOscillators() { // FIXED
+  function stopAllOscillators() {
     activeOscillators.forEach(osc => {
       try { osc.stop(); } catch(e) {}
     });
@@ -154,7 +153,49 @@
     playShimmer(shimmerArp[shimmerIndex]);
   }
 
-  // === DRAW CORE, RAIN, SHAPES, BEAMS ===
+  // === DRAW SHAPE (FIXED) ===
+  function drawShape(shape) {
+    shape.rot += shape.rotSpeed;
+    shape.pulse *= 0.92;
+    shape.r *= 0.995;
+
+    ctx.save();
+    ctx.translate(shape.x, shape.y);
+    ctx.rotate(shape.rot);
+
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, shape.r * (1 + shape.pulse));
+    grad.addColorStop(0, shape.color);
+    grad.addColorStop(0.5, shape.color + '88');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    for (let i = 0; i < shape.sides; i++) {
+      const angle = (i / shape.sides) * Math.PI * 2;
+      const x = Math.cos(angle) * shape.r;
+      const y = Math.sin(angle) * shape.r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowBlur = 100 + shape.pulse * 200;
+    ctx.shadowColor = shape.color;
+    ctx.fill();
+    ctx.restore();
+
+    shape.x += shape.vx;
+    shape.y += shape.vy;
+    shape.vx *= 0.98; shape.vy *= 0.98;
+
+    if (shape.x < 0 || shape.x > innerWidth) shape.vx *= -1;
+    if (shape.y < 0 || shape.y > innerHeight) shape.vy *= -1;
+
+    if (shape.r < 10 || shape.fade < 0.1) shapes = shapes.filter(s => s !== shape);
+  }
+
+  // === DRAW CENTER CORE ===
   function drawCore() {
     centerCore.pulse *= 0.96;
     const grad = ctx.createRadialGradient(centerCore.x, centerCore.y, 0, centerCore.x, centerCore.y, centerCore.r * (1 + centerCore.pulse));
@@ -162,9 +203,11 @@
     grad.addColorStop(0.5, '#ffffff88');
     grad.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = grad;
+
     ctx.beginPath();
     ctx.arc(centerCore.x, centerCore.y, centerCore.r * (1 + centerCore.pulse), 0, Math.PI*2);
     ctx.fill();
+
     ctx.shadowBlur = 150 + centerCore.pulse * 250;
     ctx.shadowColor = '#ffffff';
     ctx.fill();
