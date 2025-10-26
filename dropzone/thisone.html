@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibraTronix — Latent Space Electric Orbit</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+// --------------------------------------------------
+// 1. Canvas
+// --------------------------------------------------
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+resize(); window.addEventListener('resize', resize);
+
+// --------------------------------------------------
+// 2. Cosmic Vortex Background
+// --------------------------------------------------
+let stars = [];
+let vortex = [];
+
+function initCosmos() {
+  stars = Array.from({length: 500}, () => ({
+    x: Math.random() * innerWidth,
+    y: Math.random() * innerHeight,
+    r: Math.random() * 1.2,
+    twinkle: Math.random() * Math.PI * 2,
+    angle: Math.random() * Math.PI * 2,
+    dist: Math.random() * 500
+  }));
+
+  vortex = Array.from({length: 8}, () => ({
+    angle: Math.random() * Math.PI * 2,
+    speed: 0.003 + Math.random() * 0.005,
+    r: 200 + Math.random() * 300,
+    color: ['#4a148c','#6a1b9a','#7b1fa2','#8e24aa'][Math.floor(Math.random()*4)]
+  }));
+}
+
+function drawCosmos() {
+  // Vortex
+  vortex.forEach(v => {
+    v.angle += v.speed;
+    const x = innerWidth/2 + Math.cos(v.angle) * v.r;
+    const y = innerHeight/2 + Math.sin(v.angle) * v.r;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, v.r * 0.5);
+    grad.addColorStop(0, v.color + '18');
+    grad.addColorStop(1, v.color + '00');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, v.r * 0.5, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // Stars
+  stars.forEach(s => {
+    s.angle += 0.0005;
+    s.x = innerWidth/2 + Math.cos(s.angle) * s.dist;
+    s.y = innerHeight/2 + Math.sin(s.angle) * s.dist;
+    const twinkle = Math.sin(Date.now()*0.001 + s.twinkle)*0.5 + 0.5;
+    ctx.fillStyle = `rgba(255,255,255,${twinkle})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fill();
+  });
+}
+
+// === AUDIO ===
+let audioCtx, masterGain;
+let step = 0;
+let shimmerIndex = 0;
+const shimmerArp = [72, 76, 79, 84, 79, 76, 72, 67];
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.85;
+  masterGain.connect(audioCtx.destination);
+}
+
+function musicStep() {
+  step = (step + 1) % 8;
+  // your music code here
+}
+
+function shimmerVoice() {
+  shimmerIndex = (shimmerIndex + 1) % shimmerArp.length;
+  // your shimmer code here
+}
+
+// === ANIMATION ===
+function animate() {
+  animationId = requestAnimationFrame(animate);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawCosmos();
+}
+
+let isPlaying = false;
+async function start() {
+  if (isPlaying) return;
+  initAudio();
+  initCosmos();
+  musicInterval = setInterval(musicStep, 200);
+  shimmerInterval = setInterval(shimmerVoice, 800);
+  animationId = requestAnimationFrame(animate);
+  isPlaying = true;
+}
+
+function pause() {
+  if (!isPlaying) return;
+  clearInterval(musicInterval);
+  clearInterval(shimmerInterval);
+  if (animationId) cancelAnimationFrame(animationId);
+  isPlaying = false;
+}
+
+window.addEventListener('message', e => {
+  if (e.data.action === 'unlocked') start();
+  if (e.data.action === 'play' && !isPlaying) start();
+  if (e.data.action === 'pause' && isPlaying) pause();
+  if (e.data.action === 'tabHidden') pause();
+  if (e.data.action === 'tabVisible' && isPlaying) start();
+});
+
+const check = setInterval(() => {
+  if (window.top && window.top.audioUnlocked) {
+    clearInterval(check);
+    start();
+  }
+}, 100);
+</script>
+
+</body>
+</html>
