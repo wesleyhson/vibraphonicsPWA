@@ -15,201 +15,200 @@
 <canvas id="c"></canvas>
 
 <script>
-// --------------------------------------------------
-// 1. Canvas
-// --------------------------------------------------
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
-resize(); window.addEventListener('resize', resize);
+  // === GLOBALS ===
+  let isPlaying = false;
+  let audioCtx, masterGain;
+  let step = 0;
+  let logStep = 0;
+  let activeOscillators = [];
+  let kickPulse = 0;
+  let shapes = [];
+  let animationId = null;
+  let musicInterval = null;
 
-// --------------------------------------------------
-// 2. Audio
-// --------------------------------------------------
-let audioCtx, masterGain;
-let step = 0;
-let logStep = 0;
-let activeOscillators = [];
-let kickPulse = 0; // For shape pulse
+  // === CANVAS ===
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  resize(); window.addEventListener('resize', resize);
 
-function unlockAudio() {
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  masterGain = audioCtx.createGain();
-  masterGain.gain.value = 0.9;
-  masterGain.connect(audioCtx.destination);
-}
+  // === AUDIO ===
+  async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.9;
+    masterGain.connect(audioCtx.destination);
+  }
 
-// --------------------------------------------------
-// 3. Fast Music Box Plinks (SWITCHED UP MELODY)
-// --------------------------------------------------
-const plinkNotes = [74, 78, 81, 83, 86, 88, 90, 93]; // Shifted up + altered for variation
+  function stopAllOscillators() {
+    activeOscillators.forEach(osc => {
+      try { osc.stop(); } catch(e) {}
+    });
+    activeOscillators = [];
+  }
 
-function playPlink() {
-  const t = audioCtx.currentTime;
-  const note = plinkNotes[Math.floor(Math.random() * plinkNotes.length)];
-  const freq = 440 * Math.pow(2, (note - 69) / 12);
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0, t);
-  gain.gain.linearRampToValueAtTime(0.38, t + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
-  osc.connect(gain).connect(masterGain);
-  osc.start(t); osc.stop(t + 0.8);
-  activeOscillators.push(osc);
-}
+  // === PLINKS (SWITCHED UP MELODY) ===
+  const plinkNotes = [74, 78, 81, 83, 86, 88, 90, 93]; // Shifted + varied
 
-// --------------------------------------------------
-// 4. Kick (SWITCHED UP: LESS BOOMY, SOFTER)
-// --------------------------------------------------
-function playKick() {
-  const t = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(100, t); // Softer start
-  osc.frequency.exponentialRampToValueAtTime(40, t + 0.12); // Slower ramp
-  gain.gain.setValueAtTime(0.7, t); // Quieter
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-  osc.connect(gain).connect(masterGain);
-  osc.start(t); osc.stop(t + 0.4);
-  activeOscillators.push(osc);
-  kickPulse = 1; // Trigger shape pulse
-}
+  function playPlink() {
+    const t = audioCtx.currentTime;
+    const note = plinkNotes[Math.floor(Math.random() * plinkNotes.length)];
+    const freq = 440 * Math.pow(2, (note - 69) / 12);
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.38, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.8);
+    activeOscillators.push(osc);
+  }
 
-// --------------------------------------------------
-// 5. Log Drum
-// --------------------------------------------------
-function playLogDrum(energy) {
-  const t = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(140 + energy * 100, t);
-  osc.frequency.exponentialRampToValueAtTime(70 + energy * 50, t + 0.15);
-  gain.gain.setValueAtTime(0.5, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-  osc.connect(gain).connect(masterGain);
-  osc.start(t); osc.stop(t + 0.6);
-  activeOscillators.push(osc);
-}
+  // === KICK (SWITCHED UP: SOFTER, SLOWER) ===
+  function playKick() {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(100, t); // Softer start
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.12); // Slower decay
+    gain.gain.setValueAtTime(0.7, t); // Quieter
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.4);
+    activeOscillators.push(osc);
+    kickPulse = 1; // Trigger pulse
+  }
 
-// --------------------------------------------------
-// 6. Music Step
-// --------------------------------------------------
-function musicStep() {
-  step = (step + 1) % 8;
-  if (step % 2 === 0) playPlink();
-  if (step % 4 === 0) playKick();
-  if (step % 8 === 0) playLogDrum(Math.random() * 0.5);
-}
+  // === LOG DRUM ===
+  function playLogDrum(energy) {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140 + energy * 100, t);
+    osc.frequency.exponentialRampToValueAtTime(70 + energy * 50, t + 0.15);
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.6);
+    activeOscillators.push(osc);
+  }
 
-// --------------------------------------------------
-// 7. Shapes (PULSE ON BEAT WITH KICKPULSE)
-// --------------------------------------------------
-let shapes = [];
-function spawnShape() {
-  shapes.push({
-    x: innerWidth / 2,
-    y: innerHeight / 2,
-    r: 20 + Math.random() * 60,
-    sides: 3 + Math.floor(Math.random() * 5),
-    rot: Math.random() * Math.PI * 2,
-    rotSpeed: (Math.random() - 0.5) * 0.05,
-    color: ['#ff6b6b','#f9ca24','#1dd1a1','#48dbfb','#ff9ff3'][Math.floor(Math.random()*5)],
-    pulse: 0,
-    vx: (Math.random() - 0.5) * 3,
-    vy: (Math.random() - 0.5) * 3
+  // === MUSIC LOOP ===
+  function musicStep() {
+    step = (step + 1) % 8;
+    if (step % 2 === 0) playPlink();
+    if (step % 4 === 0) playKick();
+    if (step % 8 === 0) playLogDrum(Math.random() * 0.5);
+  }
+
+  // === SHAPES (PULSE ON BEAT) ===
+  function spawnShape() {
+    shapes.push({
+      x: innerWidth / 2,
+      y: innerHeight / 2,
+      r: 20 + Math.random() * 60,
+      sides: 3 + Math.floor(Math.random() * 5),
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.05,
+      color: ['#ff6b6b','#f9ca24','#1dd1a1','#48dbfb','#ff9ff3'][Math.floor(Math.random()*5)],
+      pulse: 0,
+      vx: (Math.random() - 0.5) * 3,
+      vy: (Math.random() - 0.5) * 3
+    });
+  }
+
+  function drawShape(shape) {
+    shape.rot += shape.rotSpeed;
+    shape.pulse *= 0.9;
+    shape.pulse += kickPulse * 2; // PULSE ON KICK
+
+    ctx.save();
+    ctx.translate(shape.x, shape.y);
+    ctx.rotate(shape.rot);
+
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, shape.r * (1 + shape.pulse));
+    gradient.addColorStop(0, shape.color);
+    gradient.addColorStop(0.7, shape.color + '99');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+
+    ctx.beginPath();
+    for (let i = 0; i < shape.sides; i++) {
+      const angle = (i / shape.sides) * Math.PI * 2;
+      const x = Math.cos(angle) * shape.r;
+      const y = Math.sin(angle) * shape.r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowBlur = 60 + shape.pulse * 120;
+    ctx.shadowColor = shape.color;
+    ctx.fill();
+    ctx.restore();
+
+    shape.x += shape.vx;
+    shape.y += shape.vy;
+    shape.vx *= 0.99; shape.vy *= 0.99;
+
+    if (shape.x < 0 || shape.x > innerWidth) shape.vx *= -1;
+    if (shape.y < 0 || shape.y > innerHeight) shape.vy *= -1;
+
+    if (shape.r < 10) shapes = shapes.filter(s => s !== shape);
+  }
+
+  // === ANIMATION ===
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (Math.random() < 0.3) spawnShape();
+
+    shapes.forEach(drawShape);
+
+    kickPulse *= 0.85;
+  }
+
+  // === START / PAUSE ===
+  async function start() {
+    if (isPlaying) return;
+    await initAudio();
+    musicInterval = setInterval(musicStep, 200);
+    animationId = requestAnimationFrame(animate);
+    isPlaying = true;
+  }
+
+  function pause() {
+    if (!isPlaying) return;
+    clearInterval(musicInterval);
+    if (animationId) cancelAnimationFrame(animationId);
+    stopAllOscillators();
+    isPlaying = false;
+  }
+
+  // === LISTEN FOR CONTROL ===
+  window.addEventListener('message', (e) => {
+    if (e.data.action === 'unlocked') start();
+    if (e.data.action === 'play' && !isPlaying) start();
+    if (e.data.action === 'pause' && isPlaying) pause();
+    if (e.data.action === 'tabHidden') pause();
+    if (e.data.action === 'tabVisible' && isPlaying) start();
   });
-}
 
-function drawShape(shape) {
-  shape.rot += shape.rotSpeed;
-  shape.pulse *= 0.9;
-  if (Math.random() < 0.3) shape.pulse = 1.5;  // Random pulse
-
-  ctx.save();
-  ctx.translate(shape.x, shape.y);
-  ctx.rotate(shape.rot);
-
-  const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, shape.r * (1 + shape.pulse + kickPulse));
-  gradient.addColorStop(0, shape.color);
-  gradient.addColorStop(0.7, shape.color + '99');
-  gradient.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = gradient;
-
-  ctx.beginPath();
-  for (let i = 0; i < shape.sides; i++) {
-    const angle = (i / shape.sides) * Math.PI * 2;
-    const x = Math.cos(angle) * shape.r;
-    const y = Math.sin(angle) * shape.r;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.shadowBlur = 60 + shape.pulse * 120;
-  ctx.shadowColor = shape.color;
-  ctx.fill();
-  ctx.restore();
-
-  shape.x += shape.vx;
-  shape.y += shape.vy;
-  shape.vx *= 0.99; shape.vy *= 0.99;
-
-  if (shape.x < 0 || shape.x > innerWidth) shape.vx *= -1;
-  if (shape.y < 0 || shape.y > innerHeight) shape.vy *= -1;
-
-  if (shape.r < 10) shapes = shapes.filter(s => s !== shape);
-}
-
-// === ANIMATION ===
-function animate() {
-  requestAnimationFrame(animate);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  drawRain();
-  drawCore();
-  shapes.forEach(drawShape);
-  drawBeams();
-}
-
-// === START / PAUSE ===
-async function start() {
-  if (isPlaying) return;
-  await initAudio();
-  initRain();
-  musicInterval = setInterval(musicStep, 200);
-  shimmerInterval = setInterval(shimmerVoice, 800);
-  animationId = requestAnimationFrame(animate);
-  isPlaying = true;
-}
-
-function pause() {
-  if (!isPlaying) return;
-  clearInterval(musicInterval);
-  clearInterval(shimmerInterval);
-  if (animationId) cancelAnimationFrame(animationId);
-  stopAllOscillators();
-  isPlaying = false;
-}
-
-window.addEventListener('message', (e) => {
-  if (e.data.action === 'unlocked') start();
-  if (e.data.action === 'play' && !isPlaying) start();
-  if (e.data.action === 'pause' && isPlaying) pause();
-  if (e.data.action === 'tabHidden') pause();
-  if (e.data.action === 'tabVisible' && isPlaying) start();
-});
-
-const check = setInterval(() => {
-  if (window.top && window.top.audioUnlocked) {
-    clearInterval(check);
-    start();
-  }
-}, 100);
+  // === AUTO-START AFTER UNLOCK ===
+  const check = setInterval(() => {
+    if (window.top && window.top.audioUnlocked) {
+      clearInterval(check);
+      start();
+    }
+  }, 100);
 </script>
 
 </body>
