@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VibraTronix — Drum & Bass Orbs (Evolutionary)</title>
+  <title>VibraTronix — SLoppy D&B Orbs (CLIT HUM)</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
@@ -26,16 +26,18 @@
   let currentBPM = baseBPM;
   let boostEndTime = 0;
   let collisionCount = 0;
+  let clitHum = false;
+  let humOsc = null;
 
-  // === ORBS (WITH INITIAL VELOCITY) ===
+  // === ORBS (WITH WILD VELOCITY) ===
   let drumOrb = { 
     x: innerWidth * 0.35, 
     y: innerHeight/2, 
     r: 120, 
     pulse: 0, 
-    color: '#ff3300',
-    vx: 3 + Math.random() * 3,
-    vy: (Math.random() - 0.5) * 6
+    color: '#ff0066',
+    vx: 6 + Math.random() * 4,
+    vy: (Math.random() - 0.5) * 8
   };
   let bassOrb = { 
     x: innerWidth * 0.65, 
@@ -43,8 +45,8 @@
     r: 120, 
     pulse: 0, 
     color: '#00ffcc',
-    vx: -(3 + Math.random() * 3),
-    vy: (Math.random() - 0.5) * 6
+    vx: -(6 + Math.random() * 4),
+    vy: (Math.random() - 0.5) * 8
   };
 
   // === CANVAS ===
@@ -84,7 +86,7 @@
     activeOscillators = [];
   }
 
-  // === ENHANCED DRUM INSTRUMENTS ===
+  // === SLoppy D&B DRUMS ===
   function playKick() {
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
@@ -92,7 +94,7 @@
     osc.type = 'sine';
     osc.frequency.setValueAtTime(150, t);
     osc.frequency.exponentialRampToValueAtTime(40, t + 0.08);
-    gain.gain.setValueAtTime(1.8, t);
+    gain.gain.setValueAtTime(2.2, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
     osc.connect(gain).connect(compressor);
     osc.start(t); osc.stop(t + 0.35);
@@ -109,7 +111,7 @@
     }
     noise.buffer = buffer;
     const gain = audioCtx.createGain();
-    gain.gain.setValueAtTime(1.2, t);
+    gain.gain.setValueAtTime(1.6, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
     noise.connect(gain).connect(compressor);
     noise.start(t);
@@ -126,7 +128,7 @@
     const filter = audioCtx.createBiquadFilter();
     filter.type = 'highpass';
     filter.frequency.value = 8000;
-    gain.gain.setValueAtTime(0.6, t);
+    gain.gain.setValueAtTime(0.7, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
     noise.connect(filter).connect(gain).connect(compressor);
     noise.start(t);
@@ -139,11 +141,32 @@
     const gain = audioCtx.createGain();
     osc.type = 'sawtooth';
     osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.9, t);
+    gain.gain.setValueAtTime(1.2, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
     osc.connect(gain).connect(compressor);
     osc.start(t); osc.stop(t + 0.28);
     activeOscillators.push(osc);
+  }
+
+  // === CLIT HUM (SLOPPY SECONDS) ===
+  function startClitHum() {
+    if (humOsc) return;
+    const t = audioCtx.currentTime;
+    humOsc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    humOsc.type = 'sine';
+    humOsc.frequency.value = 80 + Math.random() * 40;
+    gain.gain.setValueAtTime(0.4, t);
+    humOsc.connect(gain).connect(masterGain);
+    humOsc.start(t);
+    activeOscillators.push(humOsc);
+  }
+
+  function stopClitHum() {
+    if (humOsc) {
+      humOsc.stop();
+      humOsc = null;
+    }
   }
 
   // === PING ON COLLISION ===
@@ -153,14 +176,14 @@
     const gain = audioCtx.createGain();
     osc.type = 'sine';
     osc.frequency.value = 1200 + collisionCount * 100;
-    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.setValueAtTime(0.4, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
     osc.connect(gain).connect(masterGain);
     osc.start(t); osc.stop(t + 0.15);
     activeOscillators.push(osc);
   }
 
-  // === COLLISION DETECTION + SPEED BOOST + TRIGGER SOUND ===
+  // === COLLISION DETECTION + SLOPPY SECONDS + MUSIC AGENCY ===
   function checkCollision() {
     const dx = bassOrb.x - drumOrb.x;
     const dy = bassOrb.y - drumOrb.y;
@@ -168,16 +191,14 @@
     const minDist = drumOrb.r + bassOrb.r;
 
     if (dist < minDist) {
-      // Play ping
       playPing();
-
-      // Trigger drum + bass
       playKick();
       playBass();
+      drumOrb.pulse = 5;
+      bassOrb.pulse = 5;
 
-      // Glow
-      drumOrb.pulse = 4;
-      bassOrb.pulse = 4;
+      // SLOPPY SECONDS: CLIT HUM
+      startClitHum();
 
       // Normalize direction
       const nx = dx / dist;
@@ -190,17 +211,17 @@
       bassOrb.x += nx * overlap * 0.5;
       bassOrb.y += ny * overlap * 0.5;
 
-            // Bounce velocity
+      // Bounce velocity
       const v1 = { x: drumOrb.vx, y: drumOrb.vy };
       const v2 = { x: bassOrb.vx, y: bassOrb.vy };
 
-      drumOrb.vx = v2.x * 0.9;
-      drumOrb.vy = v2.y * 0.9;
-      bassOrb.vx = v1.x * 0.9;
-      bassOrb.vy = v1.y * 0.9;
+      drumOrb.vx = v2.x * 1.1;
+      drumOrb.vy = v2.y * 1.1;
+      bassOrb.vx = v1.x * 1.1;
+      bassOrb.vy = v1.y * 1.1;
 
       // SPEED BOOST: 20 seconds
-      currentBPM = baseBPM * 1.4;
+      currentBPM = baseBPM * 1.5;
       boostEndTime = Date.now() + 20000;
       collisionCount++;
     }
@@ -215,7 +236,7 @@
     if (orb.y + orb.r > innerHeight) { orb.y = innerHeight - orb.r; orb.vy *= -0.8; bounced = true; }
     if (bounced) {
       playPing();
-      orb.pulse = 2;
+      orb.pulse = 3;
     }
   }
 
@@ -232,8 +253,8 @@
     if (step % 2 === 0) playBass();
 
     // Color sync
-    drumOrb.color = step % 8 < 4 ? '#ff3300' : '#ff6600';
-    bassOrb.color = step % 8 < 4 ? '#00ffcc' : '#00ccff';
+    drumOrb.color = step % 8 < 4 ? '#ff0066' : '#ff3399';
+    bassOrb.color = step % 8 < 4 ? '#00ffcc' : '#00ffff';
 
     drumOrb.pulse *= 0.85;
     bassOrb.pulse *= 0.85;
@@ -241,6 +262,7 @@
     // Update BPM
     if (Date.now() > boostEndTime) {
       currentBPM = baseBPM;
+      stopClitHum();
     }
   }
 
@@ -248,14 +270,14 @@
   function drawOrb(orb) {
     const gradient = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r * (1 + orb.pulse));
     gradient.addColorStop(0, orb.color);
-    gradient.addColorStop(0.7, orb.color + '99');
+    gradient.addColorStop(0.7, orb.color + 'cc');
     gradient.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.arc(orb.x, orb.y, orb.r * (1 + orb.pulse), 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.shadowBlur = 120 + orb.pulse * 220;
+    ctx.shadowBlur = 120 + orb.pulse * 300;
     ctx.shadowColor = orb.color;
     ctx.fill();
     ctx.shadowBlur = 0;
@@ -269,14 +291,14 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Physics
-    drumOrb.vx += (Math.random() - 0.5) * 0.4;
-    drumOrb.vy += (Math.random() - 0.5) * 0.4;
+    drumOrb.vx += (Math.random() - 0.5) * 0.6;
+    drumOrb.vy += (Math.random() - 0.5) * 0.6;
     drumOrb.vx *= 0.98; drumOrb.vy *= 0.98;
     drumOrb.x += drumOrb.vx;
     drumOrb.y += drumOrb.vy;
 
-    bassOrb.vx += (Math.random() - 0.5) * 0.4;
-    bassOrb.vy += (Math.random() - 0.5) * 0.4;
+    bassOrb.vx += (Math.random() - 0.5) * 0.6;
+    bassOrb.vy += (Math.random() - 0.5) * 0.6;
     bassOrb.vx *= 0.98; bassOrb.vy *= 0.98;
     bassOrb.x += bassOrb.vx;
     bassOrb.y += bassOrb.vy;
@@ -303,6 +325,7 @@
     clearInterval(musicInterval);
     if (animationId) cancelAnimationFrame(animationId);
     stopAllOscillators();
+    stopClitHum();
     isPlaying = false;
   }
 
