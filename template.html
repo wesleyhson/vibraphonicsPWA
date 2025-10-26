@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TITLE</title>
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body,html{width:100%;height:100%;overflow:hidden;background:#000;display:flex;flex-direction:column;}
+    canvas{flex:1;width:100%;display:block;}
+    #overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.9);z-index:10;color:#00ffff;font-family:monospace;text-align:center;}
+    #status{font-size:1.3rem;margin-bottom:1rem;}
+    #unlock{padding:16px 32px;background:#8a2be2;color:#fff;border:none;border-radius:10px;font-weight:bold;cursor:pointer;}
+    #overlay.hidden{display:none;}
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <div id="status">Tap to unlock</div>
+    <button id="unlock">UNLOCK & VIBE</button>
+  </div>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const overlay = document.getElementById('overlay');
+    const status = document.getElementById('status');
+    const unlock = document.getElementById('unlock');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let isPlaying = false;
+
+    // === RESIZE ===
+    function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+    window.addEventListener('resize', resize); resize();
+
+    // === PLAY/PAUSE FROM PARENT ===
+    window.addEventListener('message', e => {
+      if (e.data.action === 'play' && !isPlaying) start();
+      if (e.data.action === 'pause' && isPlaying) stop();
+    });
+
+    // === START ===
+    async function start() {
+      if (isPlaying) return;
+      try {
+        status.textContent = "Starting...";
+        await Tone.start();
+        overlay.classList.add('hidden');
+        // YOUR SYNTH CODE HERE
+        isPlaying = true;
+      } catch (err) {
+        status.textContent = "Retry";
+        console.error(err);
+      }
+    }
+
+    // === STOP ===
+    function stop() {
+      if (!isPlaying) return;
+      Tone.Transport.stop();
+      isPlaying = false;
+      overlay.classList.remove('hidden');
+      status.textContent = "Paused — tap to resume";
+      unlock.textContent = "RESUME";
+    }
+
+    // === UNLOCK BUTTON ===
+    unlock.addEventListener('click', () => isPlaying ? stop() : start());
+
+    // === YOUR ANIMATION LOOP (optional) ===
+    // function animate() { ... requestAnimationFrame(animate); }
+    // animate();
+  </script>
+</body>
+</html>
