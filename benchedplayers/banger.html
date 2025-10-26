@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VibraTronix — EYE-LOCK D&B SWARM (HAND IN PANTS EDITION)</title>
+  <title>VibraTronix — SLOPPY D&B SWARM (SMILEY FACE EDITION)</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#000; overflow:hidden; }
@@ -24,6 +24,9 @@
   let baseBPM = 170;
   let currentBPM = baseBPM;
   let boostEndTime = 0;
+  let collisionCount = 0;
+  let clitHum = false;
+  let humOsc = null;
   let orbs = [];
 
   // === CANVAS ===
@@ -57,7 +60,7 @@
     activeOscillators = [];
   }
 
-  // === DRUMS ===
+  // === SLOPPY D&B DRUMS ===
   function playKick() {
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
@@ -105,7 +108,7 @@
     noise.start(t);
   }
 
-  // === SUB BASS (REMOVED HUM) ===
+  // === SUB BASS (WEIRD & DEEP) ===
   function playSubBass() {
     const t = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
@@ -122,23 +125,25 @@
     activeOscillators.push(osc);
   }
 
-  // === HARMONIC CHORD ON EYE-LOCK ===
-  function playHarmonicChord() {
+  // === CLIT HUM (SLOPPY SECONDS) ===
+  function startClitHum() {
+    if (humOsc) return;
     const t = audioCtx.currentTime;
-    const notes = [72, 76, 79, 83]; // Cmaj7
-    notes.forEach(note => {
-      const freq = 440 * Math.pow(2, (note - 69) / 12);
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.3, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
-      osc.connect(gain).connect(masterGain);
-      osc.start(t); osc.stop(t + 2.5);
-      activeOscillators.push(osc);
-    });
+    humOsc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    humOsc.type = 'sine';
+    humOsc.frequency.value = 80 + Math.random() * 40;
+    gain.gain.setValueAtTime(0.4, t);
+    humOsc.connect(gain).connect(masterGain);
+    humOsc.start(t);
+    activeOscillators.push(humOsc);
+  }
+
+  function stopClitHum() {
+    if (humOsc) {
+      humOsc.stop();
+      humOsc = null;
+    }
   }
 
   // === PING ON COLLISION ===
@@ -147,15 +152,15 @@
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = 'sine';
-    osc.frequency.value = 1500 + Math.random() * 800;
+    osc.frequency.value = 1200 + collisionCount * 100;
     gain.gain.setValueAtTime(0.4, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
     osc.connect(gain).connect(masterGain);
-    osc.start(t); osc.stop(t + 0.12);
+    osc.start(t); osc.stop(t + 0.15);
     activeOscillators.push(osc);
   }
 
-  // === ORB CLASS (EYES ONLY) ===
+  // === ORB CLASS (WITH SMILEY FACE) ===
   class Orb {
     constructor(x, y, r, color) {
       this.x = x;
@@ -169,8 +174,7 @@
       this.pupilSize = this.eyeSize * 0.4;
       this.eyeOffset = r * 0.5;
       this.eyeAngle = Math.atan2(this.vy, this.vx);
-      this.targetOrb = null;
-      this.locked = false;
+      this.mouthOpen = 0;
     }
 
     update() {
@@ -187,7 +191,7 @@
       if (this.y + this.r > innerHeight) { this.y = innerHeight - this.r; this.vy *= -0.8; playPing(); this.pulse = 3; }
 
       this.eyeAngle = Math.atan2(this.vy, this.vx);
-      this.pulse *= 0.85;
+      this.mouthOpen = Math.sin(Date.now() * 0.01) * 0.5 + 0.5;
     }
 
     draw() {
@@ -213,71 +217,62 @@
       ctx.arc(eyeX, eyeY, this.eyeSize, 0, Math.PI * 2);
       ctx.fill();
 
-      // PUPILS (LOOK AT TARGET)
-      let pupilX = eyeX;
-      let pupilY = eyeY;
-      if (this.targetOrb) {
-        const dx = this.targetOrb.x - this.x;
-        const dy = this.targetOrb.y - this.y;
-        const angle = Math.atan2(dy, dx);
-        pupilX = eyeX + Math.cos(angle) * this.eyeSize * 0.5;
-        pupilY = eyeY + Math.sin(angle) * this.eyeSize * 0.5;
-      } else {
-        pupilX = eyeX + Math.cos(this.eyeAngle) * this.eyeSize * 0.4;
-        pupilY = eyeY + Math.sin(this.eyeAngle) * this.eyeSize * 0.4;
-      }
+      // PUPILS
+      const pupilX = eyeX + Math.cos(this.eyeAngle) * this.eyeSize * 0.4;
+      const pupilY = eyeY + Math.sin(this.eyeAngle) * this.eyeSize * 0.4;
       ctx.fillStyle = '#000';
       ctx.beginPath();
       ctx.arc(pupilX, pupilY, this.pupilSize, 0, Math.PI * 2);
       ctx.fill();
+
+      // SMILEY MOUTH
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = this.r * 0.1;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * 0.6, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+
+      this.pulse *= 0.85;
     }
   }
 
-  // === EYE-LOCK + HEADBUTT + HARMONIC CHORD ===
-  function checkEyeLock() {
+  // === COLLISION + SLOPPY SECONDS ===
+  function checkCollisions() {
     for (let i = 0; i < orbs.length; i++) {
-      const a = orbs[i];
-      a.targetOrb = null;
-      a.locked = false;
-
-      for (let j = 0; j < orbs.length; j++) {
-        if (i === j) continue;
-        const b = orbs[j];
+      for (let j = i + 1; j < orbs.length; j++) {
+        const a = orbs[i], b = orbs[j];
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const dist = Math.hypot(dx, dy);
-        const angleToB = Math.atan2(dy, dx);
-        const eyeAngleDiff = Math.abs((a.eyeAngle - angleToB + Math.PI * 2) % (Math.PI * 2) - Math.PI);
+        const minDist = a.r + b.r;
 
-        if (dist < a.r * 4 && eyeAngleDiff < 0.3) {
-          a.targetOrb = b;
-          if (dist < a.r + b.r) {
-            // HEADBUTT
-            playHarmonicChord();
-            a.pulse = 6;
-            b.pulse = 6;
-            a.locked = true;
-            b.locked = true;
+        if (dist < minDist) {
+          playPing();
+          playKick();
+          playSubBass();
+          a.pulse = 5;
+          b.pulse = 5;
 
-            // Bounce
-            const nx = dx / dist;
-            const ny = dy / dist;
-            const overlap = (a.r + b.r) - dist;
-            a.x -= nx * overlap * 0.5;
-            a.y -= ny * overlap * 0.5;
-            b.x += nx * overlap * 0.5;
-            b.y += ny * overlap * 0.5;
+          startClitHum();
 
-            const v1 = { x: a.vx, y: a.vy };
-            const v2 = { x: b.vx, y: b.vy };
-            a.vx = v2.x * 1.3;
-            a.vy = v2.y * 1.3;
-            b.vx = v1.x * 1.3;
-            b.vy = v1.y * 1.3;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const overlap = minDist - dist;
+          a.x -= nx * overlap * 0.5;
+          a.y -= ny * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.y += ny * overlap * 0.5;
 
-            currentBPM = baseBPM * 1.7;
-            boostEndTime = Date.now() + 20000;
-          }
+          const v1 = { x: a.vx, y: a.vy };
+          const v2 = { x: b.vx, y: b.vy };
+          a.vx = v2.x * 1.2;
+          a.vy = v2.y * 1.2;
+          b.vx = v1.x * 1.2;
+          b.vy = v1.y * 1.2;
+
+          currentBPM = baseBPM * 1.6;
+          boostEndTime = Date.now() + 20000;
+          collisionCount++;
         }
       }
     }
@@ -285,13 +280,20 @@
 
   // === STEP ===
   function dnbStep() {
+    // DRUM
     if (step % 2 === 0) playKick();
     if (step % 4 === 2) playSnare();
     if (step % 2 === 1) playHiHat();
+
+    // SUB BASS
     if (step % 4 === 0) playSubBass();
+
     step = (step + 1) % 8;
 
-    if (Date.now() > boostEndTime) currentBPM = baseBPM;
+    if (Date.now() > boostEndTime) {
+      currentBPM = baseBPM;
+      stopClitHum();
+    }
   }
 
   // === ANIMATION ===
@@ -301,7 +303,7 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     orbs.forEach(orb => orb.update());
-    checkEyeLock();
+    checkCollisions();
     orbs.forEach(orb => orb.draw());
   }
 
@@ -310,7 +312,7 @@
     if (isPlaying) return;
     await initAudio();
 
-    // SPAWN 25 ORBS
+    // SPAWN 25 ORBS WITH SMILEY FACES
     orbs = [];
     const colors = ['#ff0066','#ff66cc','#00ffcc','#00ffff','#ff3399','#cc33ff','#ffcc00','#66ff66'];
     for (let i = 0; i < 25; i++) {
@@ -331,6 +333,7 @@
     clearInterval(musicInterval);
     if (animationId) cancelAnimationFrame(animationId);
     stopAllOscillators();
+    stopClitHum();
     isPlaying = false;
   }
 
