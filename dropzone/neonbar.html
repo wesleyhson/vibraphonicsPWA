@@ -6,71 +6,100 @@
   <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.min.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
-    body,html{width:100%;height:100%;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;}
-    canvas{display:block;}
-    #status { color:#0f0; font-family:monospace; text-align:center; margin-bottom:20px; font-size:1.2rem; }
-    #start-btn { padding:15px 30px; background:#0f0; color:#000; border:none; border-radius:8px; cursor:pointer; font-size:1rem; }
+    body,html{width:100%;height:100%;overflow:hidden;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+    canvas{display:block;flex:1;width:100%;}
+    #overlay {
+      position:absolute;top:0;left:0;width:100%;height:100%;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:rgba(0,0,0,0.8);z-index:10;color:#0f0;font-family:monospace;
+    }
+    #status {font-size:1.3rem;margin-bottom:1rem;}
+    #unlock-btn {
+      padding:16px 32px;background:#0f0;color:#000;border:none;border-radius:10px;
+      font-size:1.1rem;font-weight:bold;cursor:pointer;
+    }
+    #overlay.hidden {display:none;}
   </style>
 </head>
 <body>
-  <div id="status">Tap to neon</div>
-  <button id="start-btn">UNLOCK & VIBE</button>
+
+  <!-- UNLOCK OVERLAY -->
+  <div id="overlay">
+    <div id="status">Tap to unlock neon</div>
+    <button id="unlock-btn">UNLOCK & VIBE</button>
+  </div>
+
   <canvas id="bars"></canvas>
 
   <script>
+    const overlay = document.getElementById('overlay');
     const status = document.getElementById('status');
-    const startBtn = document.getElementById('start-btn');
+    const unlockBtn = document.getElementById('unlock-btn');
+    const canvas = document.getElementById('bars');
+    const ctx = canvas.getContext('2d');
+    
     let isPlaying = false;
+    let animationId = null;
 
-    // Listen for parent messages
+    // === LISTEN FOR PLAY/PAUSE FROM PARENT ===
     window.addEventListener('message', (e) => {
-      if (e.data.action === 'play' && !isPlaying) {
-        startSynth();
-      }
-      if (e.data.action === 'pause' && isPlaying) {
-        stopSynth();
-      }
+      if (e.data.action === 'play' && !isPlaying) startSynth();
+      if (e.data.action === 'pause' && isPlaying) stopSynth();
     });
 
+    // === RESIZE CANVAS ===
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // === START SYNTH (WITH ERROR HANDLING) ===
     async function startSynth() {
       if (isPlaying) return;
-      await Tone.start();
-      status.textContent = "Neon pulsing...";
-      startBtn.style.display = 'none';
-      Tone.Transport.bpm.value = 120;
-      Tone.Transport.start();
-      animate();  // Start animation always (visuals)
-      isPlaying = true;
+      try {
+        status.textContent = "Starting Tone.js...";
+        await Tone.start();
+        console.log('Tone.js ready');
+
+        status.textContent = "Neon pulsing...";
+        overlay.classList.add('hidden');
+
+        Tone.Transport.bpm.value = 120;
+        Tone.Transport.start();
+        startLoops();
+        animate();
+        isPlaying = true;
+      } catch (err) {
+        console.error('Tone.js failed:', err);
+        status.textContent = "Audio blocked. Tap again.";
+        unlockBtn.textContent = "RETRY";
+      }
     }
 
+    // === STOP SYNTH ===
     function stopSynth() {
       if (!isPlaying) return;
       Tone.Transport.stop();
+      if (animationId) cancelAnimationFrame(animationId);
       isPlaying = false;
+      overlay.classList.remove('hidden');
       status.textContent = "Paused — tap to resume";
-      startBtn.style.display = 'block';
-      startBtn.textContent = 'RESUME';
+      unlockBtn.textContent = "RESUME";
     }
 
-    // Manual toggle (mobile essential)
-    startBtn.addEventListener('click', () => {
-      if (isPlaying) {
-        stopSynth();
-      } else {
-        startSynth();
-      }
-    });
+    // === TONE LOOPS ===
+    function startLoops() {
+      kickLoop.start(0);
+      melodyLoop.start(0);
+    }
 
-    // === 8 NEON BARS + SYNTHS ===
-    const canvas = document.getElementById('bars');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
+    // === NEON BARS SETUP ===
     const barCount = 8;
     const barWidth = 40;
     const barSpacing = 80;
-    const startX = (canvas.width - (barCount * barSpacing)) / 2 + 40;
+    let startX = (canvas.width - (barCount * barSpacing)) / 2 + 40;
 
     const colors = ['#ff004d','#ff6600','#ffcc00','#00ff66','#00ccff','#0066ff','#cc00ff','#ffffff'];
     const notes = ['C3','D3','E3','G3','A3','C4','D4','E4'];
@@ -102,17 +131,13 @@
     const analyser = new Tone.Analyser("waveform", 32);
     kick.connect(analyser);
 
-    function initBars() {
-      kickLoop.start(0);
-      melodyLoop.start(0);
-    }
-
+    // === ANIMATION LOOP ===
     function animate() {
-      ctx.fillStyle = 'rgba(0,0,0,0.1)';
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const waveform = analyser.getValue();
-      kickPulse = Math.max(kickPulse * 0.9, Math.abs(waveform[0]));
+      kickPulse = Math.max(kickPulse * 0.9, Math.abs(waveform[0] || 0));
 
       for (let i = 0; i < barCount; i++) {
         heights[i] += (targets[i] - heights[i]) * 0.2;
@@ -120,32 +145,38 @@
         targets[i] *= 0.95;
       }
 
+      // Recalc startX on resize
+      startX = (canvas.width - (barCount * barSpacing)) / 2 + 40;
+
       for (let i = 0; i < barCount; i++) {
         const x = startX + i * barSpacing;
         const maxH = canvas.height * 0.7;
-        const h = maxH * heights[i] * (1 + kickPulse);
+        const h = maxH * heights[i] * (1 + kickPulse * 2);
+
         const gradient = ctx.createLinearGradient(x, canvas.height - h, x, canvas.height);
         gradient.addColorStop(0, colors[i]);
         gradient.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = gradient;
-        ctx.shadowBlur = 30 + kickPulse * 50;
+        ctx.shadowBlur = 30 + kickPulse * 60;
         ctx.shadowColor = colors[i];
         ctx.fillRect(x - barWidth/2, canvas.height - h, barWidth, h);
+
         ctx.fillStyle = colors[i];
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 12;
         ctx.fillRect(x - 2, canvas.height - h, 4, h);
       }
       ctx.shadowBlur = 0;
-      requestAnimationFrame(animate);
+      animationId = requestAnimationFrame(animate);
     }
 
-    // Start visuals immediately (silent)
-    animate();
-
-    window.addEventListener('resize', () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+    // === UNLOCK BUTTON ===
+    unlockBtn.addEventListener('click', () => {
+      if (isPlaying) stopSynth();
+      else startSynth();
     });
+
+    // Start silent animation
+    animate();
   </script>
 </body>
 </html>
