@@ -11,7 +11,7 @@
       height:100vh;
       overflow-y: scroll;
       scroll-snap-type: y mandatory;
-      -webkit-overflow-scrolling: touch;  /* FIXED: was "abdomen" */
+      -webkit-overflow-scrolling: touch;
       scroll-behavior: smooth;
     }
     iframe {
@@ -36,23 +36,26 @@
   </div>
 
   <script>
-    const feed = document.getElementById('feed');
-    const loading = feed.querySelector('.loading');
+    // --- RUN ON LOAD ---
+    document.addEventListener('DOMContentLoaded', () => {
+      const feed = document.getElementById('feed');
+      const loading = feed.querySelector('.loading');
 
-    const applets = ['test-applet.html'];
+      const applets = ['test-applet.html'];
 
-    if (applets.length === 0) {
-      loading.textContent = "No applets yet!";
-      return;
-    }
+      if (applets.length === 0) {
+        loading.textContent = "No applets yet!";
+        return;  // NOW LEGAL — inside function!
+      }
 
-    loading.remove();
-    applets.forEach(file => {
-      const iframe = document.createElement('iframe');
-      iframe.src = '/dropzone/' + file;
-      iframe.loading = 'lazy';
-      iframe.allow = 'autoplay';
-      feed.appendChild(iframe);
+      loading.remove();
+      applets.forEach(file => {
+        const iframe = document.createElement('iframe');
+        iframe.src = '/dropzone/' + file;
+        iframe.loading = 'lazy';
+        iframe.allow = 'autoplay';
+        feed.appendChild(iframe);
+      });
     });
   </script>
 </body>
