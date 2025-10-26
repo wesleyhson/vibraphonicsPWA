@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibraTronix — SLOPPY D&B SWARM (SMILEY FACE EDITION)</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+  // === GLOBALS ===
+  let isPlaying = false;
+  let audioCtx, compressor, masterGain;
+  let animationId = null;
+  let musicInterval = null;
+  let activeOscillators = [];
+  let baseBPM = 170;
+  let currentBPM = baseBPM;
+  let boostEndTime = 0;
+  let collisionCount = 0;
+  let clitHum = false;
+  let humOsc = null;
+  let orbs = [];
+
+  // === CANVAS ===
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+
+  // === AUDIO SETUP ===
+  async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -24;
+    compressor.knee.value = 12;
+    compressor.ratio.value = 12;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.2;
+
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 1.8;
+
+    compressor.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
+  }
+
+  function stopAllOscillators() {
+    activeOscillators.forEach(osc => {
+      try { osc.stop(); } catch(e) {}
+    });
+    activeOscillators = [];
+  }
+
+  // === SLOPPY D&B DRUMS ===
+  function playKick() {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.08);
+    gain.gain.setValueAtTime(2.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.connect(gain).connect(compressor);
+    osc.start(t); osc.stop(t + 0.35);
+    activeOscillators.push(osc);
+  }
+
+  function playSnare() {
+    const t = audioCtx.currentTime;
+    const noise = audioCtx.createBufferSource();
+    const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.12, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.08));
+    }
+    noise.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(1.6, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    noise.connect(gain).connect(compressor);
+    noise.start(t);
+  }
+
+  function playHiHat() {
+    const t = audioCtx.currentTime;
+    const noise = audioCtx.createBufferSource();
+    const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.04, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    noise.buffer = buffer;
+    const gain = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 8000;
+    gain.gain.setValueAtTime(0.7, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    noise.connect(filter).connect(gain).connect(compressor);
+    noise.start(t);
+  }
+
+  // === SUB BASS (WEIRD & DEEP) ===
+  function playSubBass() {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 40 + Math.random() * 20;
+    filter.type = 'lowpass';
+    filter.frequency.value = 120 + Math.random() * 80;
+    gain.gain.setValueAtTime(1.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    osc.connect(filter).connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.6);
+    activeOscillators.push(osc);
+  }
+
+  // === CLIT HUM (SLOPPY SECONDS) ===
+  function startClitHum() {
+    if (humOsc) return;
+    const t = audioCtx.currentTime;
+    humOsc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    humOsc.type = 'sine';
+    humOsc.frequency.value = 80 + Math.random() * 40;
+    gain.gain.setValueAtTime(0.4, t);
+    humOsc.connect(gain).connect(masterGain);
+    humOsc.start(t);
+    activeOscillators.push(humOsc);
+  }
+
+  function stopClitHum() {
+    if (humOsc) {
+      humOsc.stop();
+      humOsc = null;
+    }
+  }
+
+  // === PING ON COLLISION ===
+  function playPing() {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 1200 + collisionCount * 100;
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.15);
+    activeOscillators.push(osc);
+  }
+
+  // === ORB CLASS (WITH SMILEY FACE) ===
+  class Orb {
+    constructor(x, y, r, color) {
+      this.x = x;
+      this.y = y;
+      this.r = r;
+      this.pulse = 0;
+      this.color = color;
+      this.vx = (Math.random() - 0.5) * 8;
+      this.vy = (Math.random() - 0.5) * 8;
+      this.eyeSize = r * 0.3;
+      this.pupilSize = this.eyeSize * 0.4;
+      this.eyeOffset = r * 0.5;
+      this.eyeAngle = Math.atan2(this.vy, this.vx);
+      this.mouthOpen = 0;
+    }
+
+    update() {
+      this.vx += (Math.random() - 0.5) * 0.8;
+      this.vy += (Math.random() - 0.5) * 0.8;
+      this.vx *= 0.97; this.vy *= 0.97;
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Bounce off walls
+      if (this.x - this.r < 0) { this.x = this.r; this.vx *= -0.8; playPing(); this.pulse = 3; }
+      if (this.x + this.r > innerWidth) { this.x = innerWidth - this.r; this.vx *= -0.8; playPing(); this.pulse = 3; }
+      if (this.y - this.r < 0) { this.y = this.r; this.vy *= -0.8; playPing(); this.pulse = 3; }
+      if (this.y + this.r > innerHeight) { this.y = innerHeight - this.r; this.vy *= -0.8; playPing(); this.pulse = 3; }
+
+      this.eyeAngle = Math.atan2(this.vy, this.vx);
+      this.mouthOpen = Math.sin(Date.now() * 0.01) * 0.5 + 0.5;
+    }
+
+    draw() {
+      const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * (1 + this.pulse));
+      gradient.addColorStop(0, this.color);
+      gradient.addColorStop(0.7, this.color + 'cc');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * (1 + this.pulse), 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowBlur = 120 + this.pulse * 300;
+      ctx.shadowColor = this.color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // EYES
+      const eyeX = this.x + Math.cos(this.eyeAngle) * this.eyeOffset;
+      const eyeY = this.y + Math.sin(this.eyeAngle) * this.eyeOffset;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, this.eyeSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // PUPILS
+      const pupilX = eyeX + Math.cos(this.eyeAngle) * this.eyeSize * 0.4;
+      const pupilY = eyeY + Math.sin(this.eyeAngle) * this.eyeSize * 0.4;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(pupilX, pupilY, this.pupilSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // SMILEY MOUTH
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = this.r * 0.1;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * 0.6, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+
+      this.pulse *= 0.85;
+    }
+  }
+
+  // === COLLISION + SLOPPY SECONDS ===
+  function checkCollisions() {
+    for (let i = 0; i < orbs.length; i++) {
+      for (let j = i + 1; j < orbs.length; j++) {
+        const a = orbs[i], b = orbs[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        const minDist = a.r + b.r;
+
+        if (dist < minDist) {
+          playPing();
+          playKick();
+          playSubBass();
+          a.pulse = 5;
+          b.pulse = 5;
+
+          startClitHum();
+
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const overlap = minDist - dist;
+          a.x -= nx * overlap * 0.5;
+          a.y -= ny * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.y += ny * overlap * 0.5;
+
+          const v1 = { x: a.vx, y: a.vy };
+          const v2 = { x: b.vx, y: b.vy };
+          a.vx = v2.x * 1.2;
+          a.vy = v2.y * 1.2;
+          b.vx = v1.x * 1.2;
+          b.vy = v1.y * 1.2;
+
+          currentBPM = baseBPM * 1.6;
+          boostEndTime = Date.now() + 20000;
+          collisionCount++;
+        }
+      }
+    }
+  }
+
+  // === STEP ===
+  function dnbStep() {
+    // DRUM
+    if (step % 2 === 0) playKick();
+    if (step % 4 === 2) playSnare();
+    if (step % 2 === 1) playHiHat();
+
+    // SUB BASS
+    if (step % 4 === 0) playSubBass();
+
+    step = (step + 1) % 8;
+
+    if (Date.now() > boostEndTime) {
+      currentBPM = baseBPM;
+      stopClitHum();
+    }
+  }
+
+  // === ANIMATION ===
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    orbs.forEach(orb => orb.update());
+    checkCollisions();
+    orbs.forEach(orb => orb.draw());
+  }
+
+  // === START / PAUSE ===
+  async function start() {
+    if (isPlaying) return;
+    await initAudio();
+
+    // SPAWN 25 ORBS WITH SMILEY FACES
+    orbs = [];
+    const colors = ['#ff0066','#ff66cc','#00ffcc','#00ffff','#ff3399','#cc33ff','#ffcc00','#66ff66'];
+    for (let i = 0; i < 25; i++) {
+      const x = innerWidth * (0.1 + Math.random() * 0.8);
+      const y = innerHeight * (0.1 + Math.random() * 0.8);
+      const r = 30 + Math.random() * 25;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      orbs.push(new Orb(x, y, r, color));
+    }
+
+    musicInterval = setInterval(dnbStep, 60000 / currentBPM / 2);
+    animationId = requestAnimationFrame(animate);
+    isPlaying = true;
+  }
+
+  function pause() {
+    if (!isPlaying) return;
+    clearInterval(musicInterval);
+    if (animationId) cancelAnimationFrame(animationId);
+    stopAllOscillators();
+    stopClitHum();
+    isPlaying = false;
+  }
+
+  // === BPM UPDATE LOOP ===
+  setInterval(() => {
+    if (isPlaying && musicInterval) {
+      clearInterval(musicInterval);
+      musicInterval = setInterval(dnbStep, 60000 / currentBPM / 2);
+    }
+  }, 100);
+
+  // === LISTEN FOR CONTROL ===
+  window.addEventListener('message', (e) => {
+    if (e.data.action === 'unlocked') start();
+    if (e.data.action === 'play' && !isPlaying) start();
+    if (e.data.action === 'pause' && isPlaying) pause();
+    if (e.data.action === 'tabHidden') pause();
+    if (e.data.action === 'tabVisible' && isPlaying) start();
+  });
+
+  // === AUTO-START AFTER UNLOCK ===
+  const check = setInterval(() => {
+    if (window.top && window.top.audioUnlocked) {
+      clearInterval(check);
+      start();
+    }
+  }, 100);
+</script>
+
+</body>
+</html>
