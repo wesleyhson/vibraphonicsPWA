@@ -23,7 +23,7 @@
   const shimmerArp = [72, 76, 79, 84, 79, 76, 72, 67];
   let animationId = null;
   let musicInterval = null;
-  let shimmerInterval = null;
+  let activeOscillators = []; // FIXED
   let rain = [];
   let shapes = [];
   let centerCore = { x: innerWidth / 2, y: innerHeight / 2, r: 120, pulse: 0 };
@@ -72,15 +72,76 @@
     masterGain.connect(audioCtx.destination);
   }
 
-  // === STOP ALL OSC ===
-  function stopAllOscillators() {
+  function stopAllOscillators() { // FIXED
     activeOscillators.forEach(osc => {
       try { osc.stop(); } catch(e) {}
     });
     activeOscillators = [];
   }
 
-  // === MUSIC STEP ===
+  // === PLINKS ===
+  function playPlink() {
+    const t = audioCtx.currentTime;
+    const note = [72, 76, 79, 84, 79, 76, 72, 67][Math.floor(Math.random() * 8)];
+    const freq = 440 * Math.pow(2, (note - 69) / 12);
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.38, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.8);
+    activeOscillators.push(osc);
+  }
+
+  // === KICK ===
+  function playKick() {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(30, t + 0.08);
+    gain.gain.setValueAtTime(0.6, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.35);
+    activeOscillators.push(osc);
+  }
+
+  // === LOG DRUM ===
+  function playLogDrum(energy) {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140 + energy * 100, t);
+    osc.frequency.exponentialRampToValueAtTime(70 + energy * 50, t + 0.15);
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.6);
+    activeOscillators.push(osc);
+  }
+
+  // === SHIMMER ===
+  function playShimmer(note) {
+    const t = audioCtx.currentTime;
+    const freq = 440 * Math.pow(2, (note - 69) / 12);
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.1, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 0.8);
+    activeOscillators.push(osc);
+  }
+
+  // === MUSIC LOOP ===
   function musicStep() {
     step = (step + 1) % 8;
     if (step % 2 === 0) playPlink();
@@ -88,49 +149,12 @@
     if (step % 8 === 0) playLogDrum(Math.random() * 0.5);
   }
 
-  // === DRAW SHAPE ===
-  function drawShape(shape) {
-    shape.rot += shape.rotSpeed;
-    shape.pulse *= 0.92;
-    shape.r *= 0.995;
-
-    ctx.save();
-    ctx.translate(shape.x, shape.y);
-    ctx.rotate(shape.rot);
-
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, shape.r * (1 + shape.pulse));
-    grad.addColorStop(0, shape.color);
-    grad.addColorStop(0.5, shape.color + '88');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-
-    ctx.beginPath();
-    for (let i = 0; i < shape.sides; i++) {
-      const angle = (i / shape.sides) * Math.PI * 2;
-      const x = Math.cos(angle) * shape.r;
-      const y = Math.sin(angle) * shape.r;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.shadowBlur = 100 + shape.pulse * 200;
-    ctx.shadowColor = shape.color;
-    ctx.fill();
-    ctx.restore();
-
-    shape.x += shape.vx;
-    shape.y += shape.vy;
-    shape.vx *= 0.98; shape.vy *= 0.98;
-
-    if (shape.x < 0 || shape.x > innerWidth) shape.vx *= -1;
-    if (shape.y < 0 || shape.y > innerHeight) shape.vy *= -1;
-
-    if (shape.r < 10 || shape.fade < 0.1) shapes = shapes.filter(s => s !== shape);
+  function shimmerVoice() {
+    shimmerIndex = (shimmerIndex + 1) % shimmerArp.length;
+    playShimmer(shimmerArp[shimmerIndex]);
   }
 
-  // === DRAW CENTER CORE ===
+  // === DRAW CORE, RAIN, SHAPES, BEAMS ===
   function drawCore() {
     centerCore.pulse *= 0.96;
     const grad = ctx.createRadialGradient(centerCore.x, centerCore.y, 0, centerCore.x, centerCore.y, centerCore.r * (1 + centerCore.pulse));
@@ -138,11 +162,9 @@
     grad.addColorStop(0.5, '#ffffff88');
     grad.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = grad;
-
     ctx.beginPath();
     ctx.arc(centerCore.x, centerCore.y, centerCore.r * (1 + centerCore.pulse), 0, Math.PI*2);
     ctx.fill();
-
     ctx.shadowBlur = 150 + centerCore.pulse * 250;
     ctx.shadowColor = '#ffffff';
     ctx.fill();
@@ -165,6 +187,7 @@
     await initAudio();
     initRain();
     musicInterval = setInterval(musicStep, 200);
+    shimmerInterval = setInterval(shimmerVoice, 800);
     animationId = requestAnimationFrame(animate);
     isPlaying = true;
   }
@@ -172,6 +195,7 @@
   function pause() {
     if (!isPlaying) return;
     clearInterval(musicInterval);
+    clearInterval(shimmerInterval);
     if (animationId) cancelAnimationFrame(animationId);
     stopAllOscillators();
     isPlaying = false;
