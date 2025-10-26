@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibraTronix — Goodnight Kiss</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+  // === GLOBALS ===
+  let isPlaying = false;
+  let audioCtx, masterGain;
+  let step = 0;
+  let melodyAgent = { pattern: [1,0,0,1,0,0,1,0], energy: 0.6, lastNote: -1 };
+  let animationId = null;
+  let musicInterval = null;
+  let pulse = 0;
+
+  // === CANVAS ===
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+
+  // === AUDIO ===
+  async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.6;
+    masterGain.connect(audioCtx.destination);
+  }
+
+  // === MUSIC BOX PLINK ===
+  const scale = [72, 74, 76, 79, 81, 83, 86, 88];
+
+  function playMusicBox(note) {
+    const t = audioCtx.currentTime;
+    const freq = 440 * Math.pow(2, (note - 69) / 12);
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.28, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
+    osc.connect(gain).connect(masterGain);
+    osc.start(t); osc.stop(t + 2.2);
+  }
+
+  // === AGENTIC MELODY ===
+  function evolveAgent() {
+    melodyAgent.energy = Math.max(0.4, Math.min(0.7, melodyAgent.energy + (Math.random() - 0.5) * 0.05));
+    if (Math.random() < 0.3) {
+      melodyAgent.pattern = melodyAgent.pattern.map(() => Math.random() < melodyAgent.energy ? 1 : 0);
+    }
+  }
+
+  function musicStep() {
+    step = (step + 1) % 8;
+    if (step === 0) evolveAgent();
+
+    if (melodyAgent.pattern[step]) {
+      let note = scale[Math.floor(Math.random() * scale.length)];
+      if (note === melodyAgent.lastNote) note = scale[(scale.indexOf(note) + 2) % scale.length];
+      melodyAgent.lastNote = note;
+      playMusicBox(note);
+      pulse = 1; // PULSE ON NOTE
+    }
+  }
+
+  // === DRAW PULSE ===
+  function drawPulse() {
+    pulse *= 0.95;
+    const gradient = ctx.createRadialGradient(innerWidth/2, innerHeight/2, 0, innerWidth/2, innerHeight/2, 300 * pulse);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // === ANIMATION ===
+  function animate() {
+    animationId = requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawPulse();
+  }
+
+  // === START / PAUSE ===
+  async function start() {
+    if (isPlaying) return;
+    await initAudio();
+    musicInterval = setInterval(musicStep, 800);
+    animationId = requestAnimationFrame(animate);
+    isPlaying = true;
+  }
+
+  function pause() {
+    if (!isPlaying) return;
+    clearInterval(musicInterval);
+    if (animationId) cancelAnimationFrame(animationId);
+    isPlaying = false;
+  }
+
+  // === LISTEN FOR CONTROL (FIXED) ===
+  window.addEventListener('message', (e) => {
+    if (e.data.action === 'unlocked') start();
+    if (e.data.action === 'play' && !isPlaying) start();
+    if (e.data.action === 'pause' && isPlaying) pause();
+    if (e.data.action === 'tabHidden') pause();
+    if (e.data.action === 'tabVisible' && isPlaying) start();
+  });
+
+  // === AUTO-START AFTER UNLOCK ===
+  const check = setInterval(() => {
+    if (window.top && window.top.audioUnlocked) {
+      clearInterval(check);
+      start();
+    }
+  }, 100);
+</script>
+
+</body>
+</html>
